@@ -1,5 +1,5 @@
 {
-  "name": "@axelroark/universal-dev-env",
+  "name": "@nhangen/universal-dev-env",
   "version": "1.0.0",
   "description": "Universal development environment setup for modern web projects",
   "main": "bin/universal-setup.js",
@@ -25,16 +25,16 @@
     "node",
     "python"
   ],
-  "author": "Axelroark <contact@axelroark.com>",
+  "author": "nhangen <contact@nhangen.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/axelroark/universal-dev-env.git"
+    "url": "https://github.com/nhangen/universal-dev-env.git"
   },
   "bugs": {
-    "url": "https://github.com/axelroark/universal-dev-env/issues"
+    "url": "https://github.com/nhangen/universal-dev-env/issues"
   },
-  "homepage": "https://github.com/axelroark/universal-dev-env#readme",
+  "homepage": "https://github.com/nhangen/universal-dev-env#readme",
   "engines": {
     "node": ">=16.0.0"
   },
