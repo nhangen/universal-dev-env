@@ -395,4 +395,3 @@ Generated with Universal Dev Environment VS Code Extension
 }
 
 export function deactivate() {}
-`;
