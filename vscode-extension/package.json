@@ -1,0 +1,171 @@
+{
+  "name": "universal-dev-env",
+  "displayName": "Universal Dev Environment",
+  "description": "One-click setup for modern development environments with AI tools, cloud CLIs, and optimized containers",
+  "version": "1.0.0",
+  "publisher": "axelroark",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets",
+    "Extension Packs"
+  ],
+  "keywords": [
+    "development",
+    "environment",
+    "setup",
+    "docker",
+    "devcontainer",
+    "ai",
+    "claude",
+    "react",
+    "node"
+  ],
+  "activationEvents": [
+    "onCommand:universal-dev-env.initProject",
+    "onCommand:universal-dev-env.setupEnvironment"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "universal-dev-env.initProject",
+        "title": "Initialize Universal Dev Environment",
+        "category": "Universal Dev Env",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "universal-dev-env.setupEnvironment",
+        "title": "Setup Development Tools",
+        "category": "Universal Dev Env",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "universal-dev-env.createDockerfile",
+        "title": "Create Universal Dockerfile",
+        "category": "Universal Dev Env",
+        "icon": "$(package)"
+      },
+      {
+        "command": "universal-dev-env.createDevcontainer",
+        "title": "Create DevContainer Config",
+        "category": "Universal Dev Env",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "universal-dev-env.installCLITools",
+        "title": "Install AI CLI Tools",
+        "category": "Universal Dev Env",
+        "icon": "$(robot)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "explorerResourceIsFolder",
+          "command": "universal-dev-env.initProject",
+          "group": "universal-dev-env"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "universal-dev-env.initProject"
+        },
+        {
+          "command": "universal-dev-env.setupEnvironment"
+        },
+        {
+          "command": "universal-dev-env.createDockerfile"
+        },
+        {
+          "command": "universal-dev-env.createDevcontainer"
+        },
+        {
+          "command": "universal-dev-env.installCLITools"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Universal Dev Environment",
+      "properties": {
+        "universal-dev-env.defaultProjectType": {
+          "type": "string",
+          "default": "react",
+          "enum": [
+            "react",
+            "node",
+            "python",
+            "full-stack",
+            "custom"
+          ],
+          "description": "Default project type for new projects"
+        },
+        "universal-dev-env.defaultBaseImage": {
+          "type": "string",
+          "default": "debian",
+          "enum": [
+            "alpine",
+            "debian"
+          ],
+          "description": "Default Docker base image"
+        },
+        "universal-dev-env.includeAITools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include AI CLI tools (Claude, Gemini) by default"
+        },
+        "universal-dev-env.includeCloudTools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include cloud tools (gcloud, gh) by default"
+        },
+        "universal-dev-env.autoSetupDevcontainer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically create DevContainer configuration"
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "dockerfile",
+        "path": "./snippets/dockerfile.json"
+      },
+      {
+        "language": "json",
+        "path": "./snippets/devcontainer.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.59.8",
+    "@typescript-eslint/parser": "^5.59.8",
+    "eslint": "^8.41.0",
+    "typescript": "^5.1.3",
+    "@vscode/test-electron": "^2.3.2",
+    "vsce": "^2.15.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/axelroark/universal-dev-env.git"
+  },
+  "bugs": {
+    "url": "https://github.com/axelroark/universal-dev-env/issues"
+  },
+  "homepage": "https://github.com/axelroark/universal-dev-env#readme"
+}

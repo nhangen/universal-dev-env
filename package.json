@@ -1,0 +1,59 @@
+{
+  "name": "@axelroark/universal-dev-env",
+  "version": "1.0.0",
+  "description": "Universal development environment setup for modern web projects",
+  "main": "bin/universal-setup.js",
+  "bin": {
+    "universal-dev-setup": "./bin/universal-setup.js",
+    "uds": "./bin/universal-setup.js"
+  },
+  "scripts": {
+    "install-global": "npm install -g .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo \"Build complete\"",
+    "prepare": "chmod +x bin/universal-setup.js && chmod +x universal-setup.sh"
+  },
+  "keywords": [
+    "development",
+    "environment",
+    "docker",
+    "devcontainer",
+    "setup",
+    "cli",
+    "universal",
+    "react",
+    "node",
+    "python"
+  ],
+  "author": "Axelroark <contact@axelroark.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/axelroark/universal-dev-env.git"
+  },
+  "bugs": {
+    "url": "https://github.com/axelroark/universal-dev-env/issues"
+  },
+  "homepage": "https://github.com/axelroark/universal-dev-env#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "preferGlobal": true,
+  "dependencies": {
+    "commander": "^11.0.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "files": [
+    "bin/",
+    "templates/",
+    "universal-setup.sh",
+    "Dockerfile.universal",
+    "devcontainer.universal.json",
+    "README.md"
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "name": "Universal Development Environment",
+  "build": {
+    "dockerfile": "./Dockerfile.universal",
+    "target": "development"
+  },
+  "runArgs": [
+    "--init",
+    "-p", "3000:3000",
+    "-p", "3001:3001", 
+    "-p", "5000:5000",
+    "-p", "5173:5173",
+    "-p", "8000:8000",
+    "-p", "8080:8080",
+    "-p", "9000:9000"
+  ],
+  "containerEnv": {
+    "SHELL": "/bin/bash",
+    "NODE_ENV": "development"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "ms-vscode.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "formulahendry.auto-rename-tag",
+        "christian-kohler.path-intellisense",
+        "ms-vscode.vscode-json",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "GitHub.vscode-pull-request-github",
+        "ms-vscode.vscode-github-actions",
+        "dsznajder.es7-react-js-snippets",
+        "xabikos.JavaScriptSnippets",
+        "eamodio.gitlens",
+        "visualstudioexptteam.vscodeintellicode",
+        "EditorConfig.EditorConfig",
+        "ritwickdey.LiveServer",
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-python.black-formatter",
+        "ms-vscode.vscode-node-azure-pack",
+        "googlecloudtools.cloudcode",
+        "ms-vscode.vscode-docker",
+        "ms-kubernetes-tools.vscode-kubernetes-tools"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "tailwindCSS.includeLanguages": {
+          "javascript": "javascript",
+          "typescript": "typescript",
+          "html": "HTML"
+        },
+        "tailwindCSS.experimental.classRegex": [
+          "className.*?[\"'`]([^\"'`]*)[\"'`]",
+          "class.*?[\"'`]([^\"'`]*)[\"'`]"
+        ],
+        "files.associations": {
+          "*.css": "tailwindcss"
+        },
+        "emmet.includeLanguages": {
+          "javascript": "javascriptreact",
+          "typescript": "typescriptreact"
+        },
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black"
+      }
+    }
+  },
+  "forwardPorts": [3000, 3001, 5000, 5173, 8000, 8080, 9000],
+  "portsAttributes": {
+    "3000": {
+      "label": "React Dev Server",
+      "onAutoForward": "notify"
+    },
+    "3001": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "5000": {
+      "label": "Flask/Express Server",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "Production Server",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "HTTP Server",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "Debug Port",
+      "onAutoForward": "silent"
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/.gitconfig,target=/home/developer/.gitconfig,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.claude,target=/home/developer/.config/claude-code,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.gh-config,target=/home/developer/.config/gh,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.gemini,target=/home/developer/.config/gemini,type=bind,consistency=cached",
+    "source=universal-node-modules,target=/workspace/node_modules,type=volume"
+  ],
+  "remoteUser": "developer",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "setup-dev-env",
+  "postStartCommand": "echo '🚀 Development environment ready! Run dev-start to begin.' && gh auth status || echo 'Run: gh auth login --web to authenticate with GitHub'",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest",
+      "installGitLFS": true,
+      "lfsVersion": "latest"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "dockerComposeVersion": "latest",
+      "dockerComposeBuildx": true,
+      "dockerComposeV2": true
+    },
+    "ghcr.io/devcontainers-extra/features/devcontainers-cli": {
+      "version": "latest",
+      "installDevcontainersCli": true,
+      "installDevcontainersCliCompletion": true
+    }
+  }
+}

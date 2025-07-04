@@ -1,0 +1,95 @@
+name: Publish Universal Dev Environment
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-vscode-extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Install VSCE
+        run: npm install -g vsce
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Package extension
+        run: vsce package
+      
+      - name: Publish to VS Code Marketplace
+        run: vsce publish -p ${{ secrets.VSCE_TOKEN }}
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [publish-npm, publish-vscode-extension]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## What's New
+            
+            - Universal development environment setup
+            - AI CLI tools integration
+            - Multi-platform container support
+            - VS Code extension with rich features
+            
+            ## Installation
+            
+            ```bash
+            # Via npm
+            npm install -g @axelroark/universal-dev-env
+            
+            # Via one-liner
+            curl -fsSL https://raw.githubusercontent.com/axelroark/universal-dev-env/main/install.sh | bash
+            ```
+            
+            ## VS Code Extension
+            
+            Search for "Universal Dev Environment" in the VS Code marketplace.
+          draft: false
+          prerelease: false

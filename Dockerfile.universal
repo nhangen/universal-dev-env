@@ -1,0 +1,113 @@
+# Universal Dockerfile for development environments
+# Combines best practices from PCRI and Caketrades projects
+# Supports both simple and complex project setups
+
+# Build arguments for flexibility
+ARG BASE_IMAGE=node:20-bullseye-slim
+ARG PYTHON_VERSION=3.11
+ARG NODE_VERSION=20
+
+# Stage 1: Base system with common dependencies
+FROM ${BASE_IMAGE} AS base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    bash \
+    sudo \
+    python3 \
+    python3-pip \
+    make \
+    g++ \
+    ca-certificates \
+    chromium \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Google Cloud CLI
+RUN curl https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-458.0.0-linux-x86_64.tar.gz > /tmp/google-cloud-cli.tar.gz && \
+    tar -xzf /tmp/google-cloud-cli.tar.gz -C /opt && \
+    /opt/google-cloud-sdk/install.sh --quiet && \
+    rm /tmp/google-cloud-cli.tar.gz
+ENV PATH="/opt/google-cloud-sdk/bin:${PATH}"
+
+# Install GitHub CLI
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y gh && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create user and directories
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -u 1001 -g nodejs -s /bin/bash developer && \
+    echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /home/developer/.config/claude-code /home/developer/.config/gh /home/developer/.config/gemini && \
+    chown -R developer:nodejs /home/developer/.config
+
+# Stage 2: Development environment
+FROM base AS development
+
+# Set working directory
+WORKDIR /workspace
+
+# Install AI CLI tools globally
+RUN npm install -g @anthropic-ai/claude-code @google/gemini-cli
+
+# Copy setup script and make it executable
+COPY universal-setup.sh /usr/local/bin/setup-dev-env
+RUN chmod +x /usr/local/bin/setup-dev-env
+
+# Switch to developer user
+USER developer
+
+# Set environment variables for Playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Expose common development ports
+EXPOSE 3000 3001 5000 5173 8000 8080 9000
+
+# Default command
+CMD ["bash"]
+
+# Stage 3: Production build (optional)
+FROM base AS production
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+
+# Install production dependencies
+RUN npm ci --omit=dev --no-audit --no-fund --prefer-offline && \
+    npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Build the application (if build script exists)
+RUN if npm run build --if-present; then \
+        echo "Build completed successfully"; \
+    else \
+        echo "No build script found or build failed"; \
+    fi
+
+# Create non-root user for production
+RUN groupadd -g 1001 -S appgroup && \
+    useradd -S appuser -u 1001 -g appgroup -s /bin/bash
+
+# Set proper permissions
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || curl -f http://localhost:3001/health || exit 1
+
+# Default production command
+CMD ["npm", "start"]
