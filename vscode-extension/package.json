@@ -2,8 +2,8 @@
   "name": "universal-dev-env",
   "displayName": "Universal Dev Environment",
   "description": "One-click setup for modern development environments with AI tools, cloud CLIs, and optimized containers",
-  "version": "1.0.0",
-  "publisher": "axelroark",
+  "version": "1.0.1",
+  "publisher": "nhangen",
   "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.80.0"

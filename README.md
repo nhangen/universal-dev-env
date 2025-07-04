@@ -8,7 +8,7 @@
 ## 🔗 Live Distribution Channels
 
 - **📦 NPM Package**: https://www.npmjs.com/package/@nhangen/universal-dev-env
-- **🔧 VS Code Extension**: https://marketplace.visualstudio.com/items?itemName=axelroark.universal-dev-env
+- **🔧 VS Code Extension**: https://marketplace.visualstudio.com/items?itemName=nhangen.universal-dev-env
 - **🐙 GitHub Repository**: https://github.com/nhangen/universal-dev-env
 - **⚡ One-Line Installer**: `curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/install.sh | bash`
 
@@ -40,7 +40,7 @@ brew install universal-dev-env
 
 ### VS Code Extension
 Search for "Universal Dev Environment" in VS Code Extensions marketplace or visit:
-https://marketplace.visualstudio.com/items?itemName=axelroark.universal-dev-env
+https://marketplace.visualstudio.com/items?itemName=nhangen.universal-dev-env
 
 ## 📋 Usage
 
