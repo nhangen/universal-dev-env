@@ -2,8 +2,15 @@
 
 > 🚀 One-click setup for modern development environments with AI tools, cloud CLIs, and optimized containers
 
-[![npm version](https://badge.fury.io/js/%40axelroark%2Funiversal-dev-env.svg)](https://badge.fury.io/js/%40axelroark%2Funiversal-dev-env)
+[![npm version](https://badge.fury.io/js/%40nhangen%2Funiversal-dev-env.svg)](https://badge.fury.io/js/%40nhangen%2Funiversal-dev-env)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## 🔗 Live Distribution Channels
+
+- **📦 NPM Package**: https://www.npmjs.com/package/@nhangen/universal-dev-env
+- **🔧 VS Code Extension**: https://marketplace.visualstudio.com/items?itemName=axelroark.universal-dev-env
+- **🐙 GitHub Repository**: https://github.com/nhangen/universal-dev-env
+- **⚡ One-Line Installer**: `curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/install.sh | bash`
 
 ## 🌟 Features
 
@@ -18,21 +25,22 @@
 
 ### One-Line Install
 ```bash
-curl -fsSL https://raw.githubusercontent.com/axelroark/universal-dev-env/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/install.sh | bash
 ```
 
 ### Package Manager Install
 ```bash
 # Via npm
-npm install -g @axelroark/universal-dev-env
+npm install -g @nhangen/universal-dev-env
 
 # Via Homebrew (macOS)
-brew tap axelroark/universal-dev-env
+brew tap nhangen/universal-dev-env
 brew install universal-dev-env
 ```
 
 ### VS Code Extension
-Search for "Universal Dev Environment" in VS Code Extensions marketplace.
+Search for "Universal Dev Environment" in VS Code Extensions marketplace or visit:
+https://marketplace.visualstudio.com/items?itemName=axelroark.universal-dev-env
 
 ## 📋 Usage
 
@@ -198,7 +206,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ### Development Setup
 ```bash
-git clone https://github.com/axelroark/universal-dev-env.git
+git clone https://github.com/nhangen/universal-dev-env.git
 cd universal-dev-env
 npm install
 npm run dev
@@ -253,15 +261,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 🐛 [Bug Reports](https://github.com/axelroark/universal-dev-env/issues)
-- 💡 [Feature Requests](https://github.com/axelroark/universal-dev-env/discussions)
-- 📧 [Email Support](mailto:support@axelroark.com)
-- 💬 [Discord Community](https://discord.gg/axelroark)
+- 🐛 [Bug Reports](https://github.com/nhangen/universal-dev-env/issues)
+- 💡 [Feature Requests](https://github.com/nhangen/universal-dev-env/discussions)
+- 📧 [Email Support](mailto:support@nhangen.com)
+- 💬 [Discord Community](https://discord.gg/nhangen)
 
 ---
 
 <div align="center">
-  <b>Made with ❤️ by <a href="https://github.com/axelroark">Axelroark</a></b>
+  <b>Made with ❤️ by <a href="https://github.com/nhangen">nhangen</a></b>
   <br>
   <sub>Empowering developers with universal, AI-enhanced environments</sub>
 </div>
