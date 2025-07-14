@@ -194,16 +194,17 @@ program
   });
 
 program
-  .command('upgrade')
-  .description('Upgrade universal-dev-env to latest version')
+  .command('update')
+  .alias('upgrade')
+  .description('Update universal-dev-env to latest version')
   .action(async () => {
-    const spinner = ora('Upgrading universal-dev-env...').start();
+    const spinner = ora('Updating universal-dev-env...').start();
     
     try {
       execSync('npm install -g @nhangen/universal-dev-env@latest', { stdio: 'inherit' });
-      spinner.succeed('Upgraded to latest version!');
+      spinner.succeed('Updated to latest version!');
     } catch (error) {
-      spinner.fail('Upgrade failed: ' + error.message);
+      spinner.fail('Update failed: ' + error.message);
     }
   });
 
