@@ -3,20 +3,23 @@ set -e
 
 # Universal Development Environment Setup Script
 # Combines best practices from PCRI and Caketrades projects
-# Supports both Alpine and Debian-based systems
+# Supports macOS, Alpine, and Debian-based systems
 
 echo "🚀 Universal Development Environment Setup"
 echo "==========================================="
 
 # Detect OS type
-if command -v apk &> /dev/null; then
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    OS_TYPE="macos"
+    echo "📦 Detected: macOS"
+elif command -v apk &> /dev/null; then
     OS_TYPE="alpine"
     echo "📦 Detected: Alpine Linux"
 elif command -v apt-get &> /dev/null; then
     OS_TYPE="debian"
     echo "📦 Detected: Debian/Ubuntu"
 else
-    echo "❌ Unsupported OS. This script supports Alpine and Debian/Ubuntu only."
+    echo "❌ Unsupported OS. This script supports macOS, Alpine, and Debian/Ubuntu."
     exit 1
 fi
 
@@ -24,7 +27,32 @@ fi
 install_system_packages() {
     echo "🔧 Installing system dependencies..."
     
-    if [[ "$OS_TYPE" == "alpine" ]]; then
+    if [[ "$OS_TYPE" == "macos" ]]; then
+        # Check if Homebrew is installed
+        if ! command -v brew &> /dev/null; then
+            echo "🍺 Installing Homebrew..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            
+            # Add Homebrew to PATH for current session
+            if [[ -f "/opt/homebrew/bin/brew" ]]; then
+                # Apple Silicon Macs
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+            else
+                # Intel Macs
+                eval "$(/usr/local/bin/brew shellenv)"
+            fi
+        fi
+        
+        echo "🔧 Installing macOS development tools..."
+        brew install \
+            curl \
+            wget \
+            git \
+            python3 \
+            node \
+            || echo "⚠️  Some packages may already be installed"
+            
+    elif [[ "$OS_TYPE" == "alpine" ]]; then
         apk add --no-cache \
             curl \
             wget \
@@ -84,7 +112,11 @@ install_github_cli() {
     echo "📦 Installing GitHub CLI..."
     
     if ! command -v gh &> /dev/null; then
-        if [[ "$OS_TYPE" == "alpine" ]]; then
+        if [[ "$OS_TYPE" == "macos" ]]; then
+            echo "🍺 Installing GitHub CLI via Homebrew..."
+            brew install gh
+            echo "✅ GitHub CLI installed via Homebrew"
+        elif [[ "$OS_TYPE" == "alpine" ]]; then
             # Try apk first, fallback to manual installation
             if apk add --no-cache github-cli 2>/dev/null; then
                 echo "✅ GitHub CLI installed via apk"
@@ -113,6 +145,29 @@ install_github_cli() {
         fi
     else
         echo "✅ GitHub CLI already installed"
+    fi
+}
+
+# Function to install Google Cloud CLI
+install_gcloud() {
+    echo "☁️  Installing Google Cloud CLI..."
+    
+    if ! command -v gcloud &> /dev/null; then
+        if [[ "$OS_TYPE" == "macos" ]]; then
+            echo "🍺 Installing Google Cloud CLI via Homebrew..."
+            brew install --cask google-cloud-sdk
+            echo "✅ Google Cloud CLI installed via Homebrew"
+        elif [[ "$OS_TYPE" == "debian" ]]; then
+            echo "📦 Installing Google Cloud CLI for Debian/Ubuntu..."
+            curl -sSL https://sdk.cloud.google.com | bash
+            echo "✅ Google Cloud CLI installed"
+        elif [[ "$OS_TYPE" == "alpine" ]]; then
+            echo "📦 Installing Google Cloud CLI for Alpine..."
+            curl -sSL https://sdk.cloud.google.com | bash
+            echo "✅ Google Cloud CLI installed"
+        fi
+    else
+        echo "✅ Google Cloud CLI already installed"
     fi
 }
 

@@ -7,8 +7,60 @@ const ora = require('ora');
 const fs = require('fs');
 const path = require('path');
 const { execSync, exec } = require('child_process');
+const os = require('os');
+
+// Cross-platform utilities
+function isWindows() {
+  return os.platform() === 'win32';
+}
+
+function isMacOS() {
+  return os.platform() === 'darwin';
+}
+
+function isLinux() {
+  return os.platform() === 'linux';
+}
+
+function getShellCommand(command) {
+  if (isWindows()) {
+    // Use PowerShell on Windows
+    return `powershell -Command "${command}"`;
+  }
+  return command;
+}
+
+function getPackageManager() {
+  if (isWindows()) {
+    return 'choco';
+  } else if (isMacOS()) {
+    return 'brew';
+  } else {
+    // Detect Linux package manager
+    try {
+      execSync('which apt-get', { stdio: 'ignore' });
+      return 'apt';
+    } catch {
+      try {
+        execSync('which yum', { stdio: 'ignore' });
+        return 'yum';
+      } catch {
+        try {
+          execSync('which apk', { stdio: 'ignore' });
+          return 'apk';
+        } catch {
+          return 'unknown';
+        }
+      }
+    }
+  }
+}
 
 const packageJson = require('../package.json');
+
+// Cache configuration
+const CACHE_DIR = path.join(os.homedir(), '.universal-dev-env', 'cache');
+const CACHE_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
 program
   .name('universal-dev-setup')
@@ -21,6 +73,8 @@ program
   .option('-t, --type <type>', 'Project type (react, node, python, full-stack)')
   .option('-n, --name <name>', 'Project name')
   .option('--skip-prompts', 'Skip interactive prompts')
+  .option('--cache', 'Enable caching for faster setup (default: true)')
+  .option('--no-cache', 'Disable caching and download fresh copies')
   .action(async (options) => {
     console.log(chalk.blue.bold('🚀 Universal Development Environment Setup'));
     console.log(chalk.gray('='.repeat(50)));
@@ -80,7 +134,8 @@ program
         projectName: options.name || path.basename(process.cwd()),
         projectType: options.type || 'react',
         features: ['ai-cli', 'gcloud', 'github-cli', 'vscode-extensions'],
-        baseImage: 'debian'
+        baseImage: 'debian',
+        cache: options.cache
       };
     }
 
@@ -91,6 +146,8 @@ program
   .command('install')
   .description('Install development tools in current environment')
   .option('--dry-run', 'Show what would be installed without executing')
+  .option('--cache', 'Enable caching for faster installation (default: true)')
+  .option('--no-cache', 'Disable caching and download fresh copies')
   .action(async (options) => {
     const spinner = ora('Installing development environment...').start();
     
@@ -143,7 +200,7 @@ program
     const spinner = ora('Upgrading universal-dev-env...').start();
     
     try {
-      execSync('npm install -g @axelroark/universal-dev-env@latest', { stdio: 'inherit' });
+      execSync('npm install -g @nhangen/universal-dev-env@latest', { stdio: 'inherit' });
       spinner.succeed('Upgraded to latest version!');
     } catch (error) {
       spinner.fail('Upgrade failed: ' + error.message);
@@ -152,6 +209,11 @@ program
 
 async function setupProject(config) {
   const spinner = ora('Setting up project...').start();
+  const useCache = config.cache !== false; // Default to true unless explicitly disabled
+  
+  if (useCache) {
+    spinner.text = 'Setting up project (cache enabled)...';
+  }
   
   try {
     // Create basic project structure
@@ -351,7 +413,7 @@ Edit \`devcontainer.json\` to customize:
 
 ## 📚 Documentation
 
-For more information, see the [Universal Dev Environment documentation](https://github.com/axelroark/universal-dev-env).
+For more information, see the [Universal Dev Environment documentation](https://github.com/nhangen/universal-dev-env).
 
 ---
 
@@ -463,5 +525,126 @@ async function createTemplate(templateName, directory) {
   // Template creation logic here
   console.log(`Creating ${templateName} template in ${directory}`);
 }
+
+// Cache management functions
+function initCache() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  }
+}
+
+function getCacheKey(url, type = 'file', version = null) {
+  const crypto = require('crypto');
+  const versionString = version ? `:${version}` : '';
+  return crypto.createHash('md5').update(`${type}:${url}${versionString}`).digest('hex');
+}
+
+function isCacheValid(cacheFile) {
+  if (!fs.existsSync(cacheFile)) return false;
+  const stats = fs.statSync(cacheFile);
+  const age = Date.now() - stats.mtime.getTime();
+  return age < CACHE_EXPIRY;
+}
+
+async function downloadWithCache(url, filename, useCache = true, version = null) {
+  initCache();
+  
+  // Include current package version in cache key to auto-invalidate on updates
+  const currentVersion = version || packageJson.version;
+  const cacheKey = getCacheKey(url, 'file', currentVersion);
+  const cacheFile = path.join(CACHE_DIR, `${cacheKey}_${filename}`);
+  
+  if (useCache && isCacheValid(cacheFile)) {
+    console.log(chalk.green(`📦 Using cached ${filename} (v${currentVersion})`));
+    return fs.readFileSync(cacheFile, 'utf8');
+  }
+  
+  console.log(chalk.yellow(`⬇️  Downloading ${filename}...`));
+  
+  try {
+    const response = await fetch(url);
+    const content = await response.text();
+    
+    if (useCache) {
+      // Clean up old version caches for the same URL
+      cleanupOldVersions(url, filename, currentVersion);
+      
+      fs.writeFileSync(cacheFile, content);
+      console.log(chalk.green(`💾 Cached ${filename} (v${currentVersion}) for future use`));
+    }
+    
+    return content;
+  } catch (error) {
+    if (fs.existsSync(cacheFile)) {
+      console.log(chalk.yellow(`⚠️  Download failed, using cached version (v${currentVersion})`));
+      return fs.readFileSync(cacheFile, 'utf8');
+    }
+    throw error;
+  }
+}
+
+function cleanupOldVersions(url, filename, currentVersion) {
+  if (!fs.existsSync(CACHE_DIR)) return;
+  
+  const files = fs.readdirSync(CACHE_DIR);
+  const baseUrl = url.replace(/[^a-zA-Z0-9]/g, '');
+  
+  files.forEach(file => {
+    if (file.includes(filename) && file.includes(baseUrl) && !file.includes(currentVersion)) {
+      const oldCacheFile = path.join(CACHE_DIR, file);
+      try {
+        fs.unlinkSync(oldCacheFile);
+        console.log(chalk.gray(`🗑️  Cleaned up old cache: ${file}`));
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+  });
+}
+
+function clearCache() {
+  if (fs.existsSync(CACHE_DIR)) {
+    fs.rmSync(CACHE_DIR, { recursive: true, force: true });
+    console.log(chalk.green('🗑️  Cache cleared'));
+  }
+}
+
+// Add cache management commands
+program
+  .command('cache')
+  .description('Manage cache')
+  .option('--clear', 'Clear all cached files')
+  .option('--info', 'Show cache information')
+  .action(async (options) => {
+    if (options.clear) {
+      clearCache();
+      return;
+    }
+    
+    if (options.info) {
+      initCache();
+      if (fs.existsSync(CACHE_DIR)) {
+        const files = fs.readdirSync(CACHE_DIR);
+        console.log(chalk.blue(`📦 Cache directory: ${CACHE_DIR}`));
+        console.log(chalk.blue(`📊 Cached files: ${files.length}`));
+        
+        let totalSize = 0;
+        files.forEach(file => {
+          const filePath = path.join(CACHE_DIR, file);
+          const stats = fs.statSync(filePath);
+          totalSize += stats.size;
+        });
+        
+        console.log(chalk.blue(`💾 Total cache size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`));
+      } else {
+        console.log(chalk.yellow('📦 No cache directory found'));
+      }
+      return;
+    }
+    
+    console.log(chalk.blue('Cache management options:'));
+    console.log('  --clear  Clear all cached files');
+    console.log('  --info   Show cache information');
+  });
 
 program.parse();

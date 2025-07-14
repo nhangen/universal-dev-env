@@ -1,6 +1,6 @@
 #!/bin/bash
 # Universal Dev Environment - One-line installer
-# curl -fsSL https://raw.githubusercontent.com/axelroark/universal-dev-env/main/install.sh | bash
+# curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/install.sh | bash
 
 set -e
 
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-REPO_URL="https://github.com/axelroark/universal-dev-env"
+REPO_URL="https://github.com/nhangen/universal-dev-env"
 INSTALL_DIR="$HOME/.universal-dev-env"
 BIN_DIR="$HOME/.local/bin"
 
@@ -39,7 +39,7 @@ install_via_package_manager() {
     
     if command -v brew &> /dev/null; then
         echo -e "${GREEN}🍺 Homebrew detected, installing via brew...${NC}"
-        brew tap axelroark/universal-dev-env
+        brew tap nhangen/universal-dev-env
         brew install universal-dev-env
         echo -e "${GREEN}✅ Installed via Homebrew!${NC}"
         return 0
@@ -47,7 +47,7 @@ install_via_package_manager() {
     
     if command -v npm &> /dev/null; then
         echo -e "${GREEN}📦 npm detected, installing globally...${NC}"
-        npm install -g @axelroark/universal-dev-env
+        npm install -g @nhangen/universal-dev-env
         echo -e "${GREEN}✅ Installed via npm!${NC}"
         return 0
     fi
@@ -106,7 +106,7 @@ case "$1" in
         ;;
     "update"|"upgrade")
         echo "🔄 Updating Universal Dev Environment..."
-        curl -fsSL https://raw.githubusercontent.com/axelroark/universal-dev-env/main/install.sh | bash
+        curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/install.sh | bash
         ;;
     "--version"|"-v")
         echo "Universal Dev Environment v1.0.0"

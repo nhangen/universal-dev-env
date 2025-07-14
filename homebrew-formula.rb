@@ -1,7 +1,7 @@
 class UniversalDevEnv < Formula
   desc "Universal development environment setup for modern web projects"
-  homepage "https://github.com/axelroark/universal-dev-env"
-  url "https://github.com/axelroark/universal-dev-env/archive/v1.0.0.tar.gz"
+  homepage "https://github.com/nhangen/universal-dev-env"
+  url "https://github.com/nhangen/universal-dev-env/archive/v1.0.0.tar.gz"
   sha256 "YOUR_SHA256_HERE"
   license "MIT"
 
@@ -42,7 +42,7 @@ class UniversalDevEnv < Formula
         2. uds init
         3. Open in VS Code with Dev Containers extension
       
-      Documentation: https://github.com/axelroark/universal-dev-env
+      Documentation: https://github.com/nhangen/universal-dev-env
     EOS
   end
 end

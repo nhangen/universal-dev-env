@@ -1,8 +1,8 @@
 {
   "name": "universal-dev-env",
   "displayName": "Universal Dev Environment",
-  "description": "One-click setup for modern development environments with AI tools, cloud CLIs, and optimized containers",
-  "version": "1.0.1",
+  "description": "One-click setup for modern development environments with AI tools, cloud CLIs, intelligent caching, and optimized containers",
+  "version": "1.1.0",
   "publisher": "nhangen",
   "icon": "images/icon.png",
   "engines": {
@@ -162,10 +162,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/axelroark/universal-dev-env.git"
+    "url": "https://github.com/nhangen/universal-dev-env.git"
   },
   "bugs": {
-    "url": "https://github.com/axelroark/universal-dev-env/issues"
+    "url": "https://github.com/nhangen/universal-dev-env/issues"
   },
-  "homepage": "https://github.com/axelroark/universal-dev-env#readme"
+  "homepage": "https://github.com/nhangen/universal-dev-env#readme"
 }

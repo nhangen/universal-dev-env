@@ -210,7 +210,7 @@ function showWelcomeMessage() {
         if (selection === 'Get Started') {
             vscode.commands.executeCommand('universal-dev-env.initProject');
         } else if (selection === 'Learn More') {
-            vscode.env.openExternal(vscode.Uri.parse('https://github.com/axelroark/universal-dev-env'));
+            vscode.env.openExternal(vscode.Uri.parse('https://github.com/nhangen/universal-dev-env'));
         }
     });
 }
