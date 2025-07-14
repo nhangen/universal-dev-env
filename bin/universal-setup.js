@@ -74,6 +74,7 @@ program
   .option('-n, --name <name>', 'Project name')
   .option('--here', 'Initialize in current directory instead of creating subdirectory')
   .option('--ml', 'Include ML libraries for Python projects')
+  .option('--backend <backend>', 'Backend for React projects (none, express, nextjs, firebase, serverless)')
   .option('--skip-prompts', 'Skip interactive prompts')
   .option('--cache', 'Enable caching for faster setup (default: true)')
   .option('--no-cache', 'Disable caching and download fresh copies')
@@ -143,6 +144,26 @@ program
         answers.includeMl = mlPrompt.includeMl;
       }
 
+      // If React project is selected, ask about backend
+      if (answers.projectType === 'react') {
+        const backendPrompt = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'backend',
+            message: '🔧 Select backend for your React app:',
+            choices: [
+              { name: '📦 Frontend Only (No backend)', value: 'none' },
+              { name: '🚀 Express.js API', value: 'express' },
+              { name: '⚡ Next.js (Full-stack)', value: 'nextjs' },
+              { name: '🔥 Firebase Functions', value: 'firebase' },
+              { name: '☁️  Serverless (Vercel/Netlify)', value: 'serverless' }
+            ],
+            default: 'none'
+          }
+        ]);
+        answers.backend = backendPrompt.backend;
+      }
+
       config = { ...options, ...answers };
     } else {
       config = {
@@ -152,7 +173,8 @@ program
         baseImage: 'debian',
         cache: options.cache,
         here: options.here,
-        includeMl: options.ml || false  // Use --ml flag or default to false
+        includeMl: options.ml || false,  // Use --ml flag or default to false
+        backend: options.backend || 'none'  // Use --backend flag or default to none
       };
     }
 
@@ -369,6 +391,43 @@ function generateDevcontainerConfig(config) {
   // Customize based on project type
   base.name = `${config.projectName} Dev Environment`;
   
+  if (config.projectType === 'react') {
+    const backend = config.backend || 'none';
+    
+    // Update port forwarding based on backend
+    if (backend === 'express') {
+      base.forwardPorts = [3000, 3001]; // Client and server ports
+      base.portsAttributes = {
+        "3000": { "label": "React Client" },
+        "3001": { "label": "Express Server" }
+      };
+    } else if (backend === 'nextjs') {
+      base.forwardPorts = [3000];
+      base.portsAttributes = {
+        "3000": { "label": "Next.js App" }
+      };
+    } else if (backend === 'firebase') {
+      base.forwardPorts = [3000, 5001, 9099]; // React, Firebase emulator ports
+      base.portsAttributes = {
+        "3000": { "label": "React App" },
+        "5001": { "label": "Firebase Functions" },
+        "9099": { "label": "Firebase Auth" }
+      };
+    } else {
+      base.forwardPorts = [3000];
+      base.portsAttributes = {
+        "3000": { "label": "React App" }
+      };
+    }
+    
+    // Add React-specific extensions
+    base.customizations.vscode.extensions.push(
+      'ES7+ React/Redux/React-Native snippets',
+      'Auto Rename Tag',
+      'Bracket Pair Colorizer'
+    );
+  }
+  
   if (config.projectType === 'python') {
     base.customizations.vscode.extensions.push(
       'ms-python.python',
@@ -377,7 +436,7 @@ function generateDevcontainerConfig(config) {
     );
   }
   
-  if (config.features.includes('playwright')) {
+  if (config.features && config.features.includes('playwright')) {
     base.containerEnv.PLAYWRIGHT_BROWSERS_PATH = '/usr/bin';
     base.containerEnv.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = '/usr/bin/chromium';
   }
@@ -395,17 +454,88 @@ function generatePackageJson(config) {
   
   switch (config.projectType) {
     case 'react':
-      base.scripts = {
-        start: 'react-scripts start',
-        build: 'react-scripts build',
-        test: 'react-scripts test',
-        dev: 'npm start'
-      };
-      base.dependencies = {
-        react: '^18.2.0',
-        'react-dom': '^18.2.0',
-        'react-scripts': '5.0.1'
-      };
+      const backend = config.backend || 'none';
+      
+      if (backend === 'nextjs') {
+        base.scripts = {
+          dev: 'next dev',
+          build: 'next build',
+          start: 'next start',
+          lint: 'next lint'
+        };
+        base.dependencies = {
+          next: '^14.0.0',
+          react: '^18.2.0',
+          'react-dom': '^18.2.0'
+        };
+        base.devDependencies = {
+          eslint: '^8.0.0',
+          'eslint-config-next': '^14.0.0'
+        };
+      } else if (backend === 'express') {
+        base.scripts = {
+          dev: 'concurrently "npm run server" "npm run client"',
+          server: 'cd server && nodemon index.js',
+          client: 'cd client && npm start',
+          build: 'cd client && npm run build',
+          start: 'cd server && node index.js',
+          'install-deps': 'npm install && cd client && npm install && cd ../server && npm install'
+        };
+        base.dependencies = {
+          concurrently: '^8.0.0'
+        };
+        base.devDependencies = {
+          nodemon: '^3.0.0'
+        };
+      } else if (backend === 'firebase') {
+        base.scripts = {
+          start: 'react-scripts start',
+          build: 'react-scripts build',
+          test: 'react-scripts test',
+          dev: 'npm start',
+          'firebase:serve': 'firebase emulators:start',
+          'firebase:deploy': 'npm run build && firebase deploy'
+        };
+        base.dependencies = {
+          react: '^18.2.0',
+          'react-dom': '^18.2.0',
+          'react-scripts': '5.0.1',
+          firebase: '^10.0.0'
+        };
+        base.devDependencies = {
+          'firebase-tools': '^12.0.0'
+        };
+      } else if (backend === 'serverless') {
+        base.scripts = {
+          start: 'react-scripts start',
+          build: 'react-scripts build',
+          test: 'react-scripts test',
+          dev: 'npm start',
+          'vercel:dev': 'vercel dev',
+          'vercel:deploy': 'npm run build && vercel --prod'
+        };
+        base.dependencies = {
+          react: '^18.2.0',
+          'react-dom': '^18.2.0',
+          'react-scripts': '5.0.1'
+        };
+        base.devDependencies = {
+          vercel: '^32.0.0'
+        };
+      } else {
+        // Frontend-only React
+        base.scripts = {
+          start: 'react-scripts start',
+          build: 'react-scripts build',
+          test: 'react-scripts test',
+          dev: 'npm start'
+        };
+        base.dependencies = {
+          react: '^18.2.0',
+          'react-dom': '^18.2.0',
+          'react-scripts': '5.0.1'
+        };
+      }
       break;
       
     case 'node':
@@ -507,35 +637,80 @@ Generated with Universal Dev Environment v${packageJson.version}
 async function createProjectFiles(config) {
   switch (config.projectType) {
     case 'react':
-      // Create basic React structure
-      if (!fs.existsSync('src')) {
-        fs.mkdirSync('src');
-        fs.writeFileSync('src/App.js', `import React from 'react';
+      // Create React project structure based on backend selection
+      const backend = config.backend || 'none';
+      
+      if (backend === 'nextjs') {
+        // Next.js project structure
+        if (!fs.existsSync('pages')) {
+          fs.mkdirSync('pages');
+          fs.writeFileSync('pages/index.js', `import Head from 'next/head';
+
+export default function Home() {
+  return (
+    <div>
+      <Head>
+        <title>${config.projectName}</title>
+        <meta name="description" content="Generated by Universal Dev Environment" />
+      </Head>
+
+      <main>
+        <h1>Welcome to ${config.projectName}</h1>
+        <p>Your Next.js universal dev environment is ready!</p>
+      </main>
+    </div>
+  );
+}
+`);
+          
+          fs.writeFileSync('pages/api/hello.js', `export default function handler(req, res) {
+  res.status(200).json({ 
+    message: 'Hello from ${config.projectName} API!',
+    timestamp: new Date().toISOString()
+  });
+}
+`);
+        }
+      } else if (backend === 'express') {
+        // React frontend with Express backend
+        if (!fs.existsSync('client')) {
+          fs.mkdirSync('client');
+          fs.mkdirSync('client/src');
+          fs.mkdirSync('client/public');
+          
+          fs.writeFileSync('client/src/App.js', `import React, { useState, useEffect } from 'react';
 
 function App() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    fetch('/api/hello')
+      .then(res => res.json())
+      .then(data => setMessage(data.message))
+      .catch(err => console.error('API Error:', err));
+  }, []);
+
   return (
     <div className="App">
       <h1>Welcome to ${config.projectName}</h1>
-      <p>Your universal dev environment is ready!</p>
+      <p>Your React + Express universal dev environment is ready!</p>
+      <p>Backend says: {message}</p>
     </div>
   );
 }
 
 export default App;
 `);
-        
-        fs.writeFileSync('src/index.js', `import React from 'react';
+          
+          fs.writeFileSync('client/src/index.js', `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
 `);
-      }
-      
-      if (!fs.existsSync('public')) {
-        fs.mkdirSync('public');
-        fs.writeFileSync('public/index.html', `<!DOCTYPE html>
+          
+          fs.writeFileSync('client/public/index.html', `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -547,6 +722,308 @@ root.render(<App />);
 </body>
 </html>
 `);
+        }
+        
+        // Express backend
+        if (!fs.existsSync('server')) {
+          fs.mkdirSync('server');
+          fs.writeFileSync('server/index.js', `const express = require('express');
+const path = require('path');
+const app = express();
+const port = process.env.PORT || 3001;
+
+app.use(express.json());
+
+// API routes
+app.get('/api/hello', (req, res) => {
+  res.json({ 
+    message: 'Hello from ${config.projectName} Express API!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Serve static files from React build
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/build')));
+  
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
+}
+
+app.listen(port, () => {
+  console.log(\`🚀 Server running on port \${port}\`);
+});
+`);
+          
+          // Create server package.json
+          const serverPackageJson = {
+            name: `${config.projectName.toLowerCase().replace(/\s+/g, '-')}-server`,
+            version: '1.0.0',
+            private: true,
+            scripts: {
+              start: 'node index.js',
+              dev: 'nodemon index.js'
+            },
+            dependencies: {
+              express: '^4.18.0',
+              cors: '^2.8.5'
+            },
+            devDependencies: {
+              nodemon: '^3.0.0'
+            }
+          };
+          fs.writeFileSync('server/package.json', JSON.stringify(serverPackageJson, null, 2));
+        }
+        
+        // Create client package.json
+        if (!fs.existsSync('client/package.json')) {
+          const clientPackageJson = {
+            name: `${config.projectName.toLowerCase().replace(/\s+/g, '-')}-client`,
+            version: '1.0.0',
+            private: true,
+            proxy: "http://localhost:3001",
+            scripts: {
+              start: 'react-scripts start',
+              build: 'react-scripts build',
+              test: 'react-scripts test',
+              eject: 'react-scripts eject'
+            },
+            dependencies: {
+              react: '^18.2.0',
+              'react-dom': '^18.2.0',
+              'react-scripts': '5.0.1'
+            }
+          };
+          fs.writeFileSync('client/package.json', JSON.stringify(clientPackageJson, null, 2));
+        }
+      } else if (backend === 'firebase') {
+        // React with Firebase Functions
+        if (!fs.existsSync('src')) {
+          fs.mkdirSync('src');
+          fs.writeFileSync('src/App.js', `import React, { useState, useEffect } from 'react';
+
+function App() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    // Example Firebase Function call
+    // Replace with your Firebase project URL
+    fetch('/.netlify/functions/hello')
+      .then(res => res.json())
+      .then(data => setMessage(data.message))
+      .catch(err => console.error('Firebase Function Error:', err));
+  }, []);
+
+  return (
+    <div className="App">
+      <h1>Welcome to ${config.projectName}</h1>
+      <p>Your React + Firebase universal dev environment is ready!</p>
+      <p>Function says: {message}</p>
+    </div>
+  );
+}
+
+export default App;
+`);
+          
+          fs.writeFileSync('src/index.js', `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+`);
+        }
+        
+        if (!fs.existsSync('public')) {
+          fs.mkdirSync('public');
+          fs.writeFileSync('public/index.html', `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${config.projectName}</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+`);
+        }
+        
+        // Firebase functions
+        if (!fs.existsSync('functions')) {
+          fs.mkdirSync('functions');
+          fs.writeFileSync('functions/index.js', `const functions = require('firebase-functions');
+
+exports.hello = functions.https.onRequest((request, response) => {
+  response.json({
+    message: 'Hello from ${config.projectName} Firebase Function!',
+    timestamp: new Date().toISOString()
+  });
+});
+`);
+          
+          // Create functions package.json
+          const functionsPackageJson = {
+            name: `${config.projectName.toLowerCase().replace(/\s+/g, '-')}-functions`,
+            version: '1.0.0',
+            private: true,
+            scripts: {
+              serve: 'firebase emulators:start --only functions',
+              shell: 'firebase functions:shell',
+              start: 'npm run shell',
+              deploy: 'firebase deploy --only functions',
+              logs: 'firebase functions:log'
+            },
+            engines: {
+              node: "18"
+            },
+            dependencies: {
+              "firebase-admin": "^11.8.0",
+              "firebase-functions": "^4.3.1"
+            },
+            devDependencies: {
+              "firebase-functions-test": "^3.1.0"
+            }
+          };
+          fs.writeFileSync('functions/package.json', JSON.stringify(functionsPackageJson, null, 2));
+          
+          fs.writeFileSync('firebase.json', JSON.stringify({
+            "hosting": {
+              "public": "build",
+              "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+              ],
+              "rewrites": [
+                {
+                  "source": "**",
+                  "destination": "/index.html"
+                }
+              ]
+            },
+            "functions": {
+              "source": "functions"
+            }
+          }, null, 2));
+        }
+      } else if (backend === 'serverless') {
+        // React with Serverless functions (Vercel/Netlify)
+        if (!fs.existsSync('src')) {
+          fs.mkdirSync('src');
+          fs.writeFileSync('src/App.js', `import React, { useState, useEffect } from 'react';
+
+function App() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    fetch('/api/hello')
+      .then(res => res.json())
+      .then(data => setMessage(data.message))
+      .catch(err => console.error('API Error:', err));
+  }, []);
+
+  return (
+    <div className="App">
+      <h1>Welcome to ${config.projectName}</h1>
+      <p>Your React + Serverless universal dev environment is ready!</p>
+      <p>Function says: {message}</p>
+    </div>
+  );
+}
+
+export default App;
+`);
+          
+          fs.writeFileSync('src/index.js', `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+`);
+        }
+        
+        if (!fs.existsSync('public')) {
+          fs.mkdirSync('public');
+          fs.writeFileSync('public/index.html', `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${config.projectName}</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+`);
+        }
+        
+        // Vercel/Netlify API functions
+        if (!fs.existsSync('api')) {
+          fs.mkdirSync('api');
+          fs.writeFileSync('api/hello.js', `export default function handler(req, res) {
+  res.status(200).json({
+    message: 'Hello from ${config.projectName} Serverless Function!',
+    timestamp: new Date().toISOString()
+  });
+}
+`);
+        }
+        
+        // Vercel config
+        fs.writeFileSync('vercel.json', JSON.stringify({
+          "builds": [
+            { "src": "api/**/*.js", "use": "@vercel/node" },
+            { "src": "package.json", "use": "@vercel/static-build" }
+          ]
+        }, null, 2));
+      } else {
+        // Frontend-only React project
+        if (!fs.existsSync('src')) {
+          fs.mkdirSync('src');
+          fs.writeFileSync('src/App.js', `import React from 'react';
+
+function App() {
+  return (
+    <div className="App">
+      <h1>Welcome to ${config.projectName}</h1>
+      <p>Your React universal dev environment is ready!</p>
+    </div>
+  );
+}
+
+export default App;
+`);
+          
+          fs.writeFileSync('src/index.js', `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+`);
+        }
+        
+        if (!fs.existsSync('public')) {
+          fs.mkdirSync('public');
+          fs.writeFileSync('public/index.html', `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${config.projectName}</title>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
+`);
+        }
       }
       break;
       

@@ -157,10 +157,20 @@ universal-dev-setup         # Main setup script (direct)
 ```bash
 uds init --type react
 ```
-- Create React App or Vite setup
-- TailwindCSS integration
-- Hot reload development
-- Optimized production builds
+- **Frontend Only**: Pure React frontend without backend
+- **Express Backend**: React + Express.js API server
+- **Next.js Full-stack**: Next.js with built-in API routes
+- **Firebase Functions**: React + Firebase serverless functions
+- **Serverless**: React + Vercel/Netlify Edge functions
+
+Choose backend during setup or use flags:
+```bash
+uds init --type react --backend express    # React + Express
+uds init --type react --backend nextjs     # Next.js full-stack
+uds init --type react --backend firebase   # React + Firebase
+uds init --type react --backend serverless # React + Vercel/Netlify
+uds init --type react --backend none       # Frontend only
+```
 
 ### Node.js Backend
 ```bash
