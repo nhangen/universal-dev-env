@@ -199,11 +199,18 @@ program
       }
 
       spinner.text = 'Running setup script...';
-      execSync(`"${scriptPath}"`, { stdio: 'inherit' });
+      console.log(chalk.blue('\n🚀 Executing setup script...\n'));
       
-      spinner.succeed('Development environment setup complete!');
-      console.log(chalk.green('✅ Latest setup script downloaded and executed'));
-      console.log(chalk.blue('📁 Script saved as: universal-setup.sh'));
+      try {
+        execSync(`bash "${scriptPath}"`, { stdio: 'inherit' });
+        spinner.succeed('Development environment setup complete!');
+        console.log(chalk.green('✅ All tools installed and configured'));
+      } catch (scriptError) {
+        spinner.fail('Setup script execution failed');
+        console.log(chalk.red('❌ Script failed with error:', scriptError.message));
+        console.log(chalk.yellow('💡 Try running manually: ./universal-setup.sh'));
+        throw scriptError;
+      }
     } catch (error) {
       spinner.fail('Setup failed: ' + error.message);
       console.log(chalk.yellow('💡 Try running manually:'));
