@@ -296,12 +296,457 @@ program
     }
   });
 
+// Configuration strategy selector
+function selectConfigurationStrategy(config) {
+  const strategy = {
+    containerStrategy: 'devcontainer', // devcontainer, docker, docker-compose
+    configFormat: 'json', // json, yaml
+    deploymentStrategy: 'static', // static, containerized, serverless, hybrid
+    environmentConfigs: ['development'], // development, staging, production
+    additionalConfigs: []
+  };
+
+  // Determine container strategy based on project complexity
+  if (config.projectType === 'react' && config.backend === 'express') {
+    strategy.containerStrategy = 'docker-compose'; // Multi-service
+    strategy.deploymentStrategy = 'containerized';
+    strategy.environmentConfigs = ['development', 'staging', 'production'];
+  } else if (config.projectType === 'full-stack') {
+    strategy.containerStrategy = 'docker-compose';
+    strategy.deploymentStrategy = 'containerized';
+    strategy.environmentConfigs = ['development', 'staging', 'production'];
+  } else if (config.projectType === 'react' && ['firebase', 'serverless'].includes(config.backend)) {
+    strategy.containerStrategy = 'devcontainer'; // Development only
+    strategy.deploymentStrategy = 'serverless';
+    strategy.configFormat = 'yaml'; // Serverless often uses YAML
+  } else if (config.projectType === 'react' && config.backend === 'nextjs') {
+    strategy.containerStrategy = 'docker'; // Single service
+    strategy.deploymentStrategy = 'hybrid'; // Can be static or containerized
+  } else if (config.projectType === 'python') {
+    strategy.containerStrategy = 'docker';
+    strategy.deploymentStrategy = 'containerized';
+    strategy.configFormat = 'yaml'; // Python ecosystem often uses YAML
+  } else {
+    strategy.containerStrategy = 'devcontainer';
+    strategy.deploymentStrategy = 'static';
+  }
+
+  // Add additional configs based on features
+  if (config.features && config.features.includes('playwright')) {
+    strategy.additionalConfigs.push('playwright');
+  }
+  
+  if (config.includeMl) {
+    strategy.additionalConfigs.push('jupyter', 'conda');
+  }
+
+  return strategy;
+}
+
+// Create container configurations based on selected strategy
+async function createContainerConfigurations(config) {
+  const strategy = config.strategy;
+  
+  switch (strategy.containerStrategy) {
+    case 'devcontainer':
+      await createDevcontainerConfig(config);
+      break;
+      
+    case 'docker':
+      await createDockerConfig(config);
+      await createDevcontainerConfig(config); // Still create devcontainer for development
+      break;
+      
+    case 'docker-compose':
+      await createDockerComposeConfig(config);
+      await createDevcontainerConfig(config); // DevContainer can use docker-compose
+      break;
+  }
+  
+  // Create environment-specific configurations
+  await createEnvironmentConfigs(config);
+}
+
+async function createDevcontainerConfig(config) {
+  if (!fs.existsSync('.devcontainer')) {
+    fs.mkdirSync('.devcontainer');
+  }
+  
+  const devcontainerConfig = generateDevcontainerConfig(config);
+  const filename = config.strategy.configFormat === 'yaml' ? 'devcontainer.yml' : 'devcontainer.json';
+  
+  if (config.strategy.configFormat === 'yaml') {
+    // Convert to YAML format (for demonstration, keeping JSON for now)
+    fs.writeFileSync(`.devcontainer/${filename}`, JSON.stringify(devcontainerConfig, null, 2));
+  } else {
+    fs.writeFileSync(`.devcontainer/${filename}`, JSON.stringify(devcontainerConfig, null, 2));
+  }
+}
+
+async function createDockerConfig(config) {
+  const dockerfileContent = generateDockerfile(config);
+  fs.writeFileSync('Dockerfile', dockerfileContent);
+  
+  // Create .dockerignore
+  const dockerignoreContent = generateDockerignore(config);
+  fs.writeFileSync('.dockerignore', dockerignoreContent);
+}
+
+async function createDockerComposeConfig(config) {
+  const dockerComposeContent = generateDockerCompose(config);
+  const filename = config.strategy.configFormat === 'yaml' ? 'docker-compose.yml' : 'docker-compose.json';
+  
+  if (config.strategy.configFormat === 'yaml') {
+    fs.writeFileSync(filename, dockerComposeContent);
+  } else {
+    // Convert YAML to JSON format if needed
+    fs.writeFileSync(filename, dockerComposeContent);
+  }
+  
+  // Also create individual Dockerfiles for services
+  await createDockerConfig(config);
+}
+
+async function createEnvironmentConfigs(config) {
+  const strategy = config.strategy;
+  
+  for (const env of strategy.environmentConfigs) {
+    const envConfig = generateEnvironmentConfig(config, env);
+    const filename = `.env.${env}`;
+    fs.writeFileSync(filename, envConfig);
+  }
+  
+  // Create environment-specific deployment configs
+  if (strategy.deploymentStrategy === 'containerized') {
+    await createKubernetesConfigs(config);
+  }
+}
+
+function generateDockerfile(config) {
+  const backend = config.backend || 'none';
+  
+  if (config.projectType === 'react' && backend === 'nextjs') {
+    return `# Next.js Production Dockerfile
+FROM node:18-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+RUN npm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV production
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+ENV PORT 3000
+
+CMD ["node", "server.js"]
+`;
+  } else if (config.projectType === 'python') {
+    return `# Python Application Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \\
+    build-essential \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash app
+RUN chown -R app:app /app
+USER app
+
+EXPOSE 8000
+
+CMD ["python", "main.py"]
+`;
+  } else {
+    // Generic Node.js Dockerfile
+    return `# Node.js Application Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S app -u 1001
+RUN chown -R app:nodejs /app
+USER app
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+`;
+  }
+}
+
+function generateDockerignore(config) {
+  return `node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.DS_Store
+.vscode
+.devcontainer
+Dockerfile
+.dockerignore
+${config.projectType === 'python' ? '__pycache__\n*.pyc\nvenv/\n.pytest_cache/' : ''}
+`;
+}
+
+function generateDockerCompose(config) {
+  const backend = config.backend || 'none';
+  
+  if (config.projectType === 'react' && backend === 'express') {
+    return `version: '3.8'
+
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:3001
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://user:password@db:5432/myapp
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=myapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+`;
+  } else if (config.projectType === 'full-stack') {
+    return `version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+`;
+  } else {
+    return `version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+`;
+  }
+}
+
+function generateEnvironmentConfig(config, environment) {
+  const baseConfig = `# ${environment.toUpperCase()} Environment Configuration
+NODE_ENV=${environment}
+`;
+
+  const backend = config.backend || 'none';
+  
+  if (config.projectType === 'react' && backend === 'express') {
+    return baseConfig + `
+# API Configuration
+API_URL=${environment === 'production' ? 'https://your-api.com' : 'http://localhost:3001'}
+REACT_APP_API_URL=${environment === 'production' ? 'https://your-api.com' : 'http://localhost:3001'}
+
+# Database Configuration
+DATABASE_URL=${environment === 'production' ? 'postgresql://user:password@prod-db:5432/myapp' : 'postgresql://user:password@localhost:5432/myapp'}
+
+# Security
+JWT_SECRET=${environment === 'production' ? 'your-production-secret' : 'your-development-secret'}
+`;
+  } else if (config.projectType === 'python') {
+    return baseConfig + `
+# Python Configuration
+DEBUG=${environment === 'development' ? 'True' : 'False'}
+SECRET_KEY=${environment === 'production' ? 'your-production-secret-key' : 'your-development-secret-key'}
+
+# Database
+DATABASE_URL=${environment === 'production' ? 'postgresql://user:password@prod-db:5432/myapp' : 'sqlite:///./dev.db'}
+`;
+  } else {
+    return baseConfig + `
+# Application Configuration
+PORT=${environment === 'production' ? '80' : '3000'}
+`;
+  }
+}
+
+async function createKubernetesConfigs(config) {
+  if (!fs.existsSync('k8s')) {
+    fs.mkdirSync('k8s');
+  }
+  
+  // Create basic Kubernetes deployment
+  const k8sDeployment = generateKubernetesDeployment(config);
+  fs.writeFileSync('k8s/deployment.yaml', k8sDeployment);
+  
+  // Create service
+  const k8sService = generateKubernetesService(config);
+  fs.writeFileSync('k8s/service.yaml', k8sService);
+}
+
+function generateKubernetesDeployment(config) {
+  return `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}
+  labels:
+    app: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}
+  template:
+    metadata:
+      labels:
+        app: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}
+    spec:
+      containers:
+      - name: app
+        image: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+`;
+}
+
+function generateKubernetesService(config) {
+  return `apiVersion: v1
+kind: Service
+metadata:
+  name: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}-service
+spec:
+  selector:
+    app: ${config.projectName.toLowerCase().replace(/\s+/g, '-')}
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: LoadBalancer
+`;
+}
+
 async function setupProject(config) {
   const spinner = ora('Setting up project...').start();
   const useCache = config.cache !== false; // Default to true unless explicitly disabled
   
+  // Select configuration strategy
+  const strategy = selectConfigurationStrategy(config);
+  config.strategy = strategy;
+  
   if (useCache) {
-    spinner.text = 'Setting up project (cache enabled)...';
+    spinner.text = `Setting up project (cache enabled, ${strategy.containerStrategy} strategy)...`;
   }
   
   try {
@@ -349,13 +794,8 @@ async function setupProject(config) {
       }
     }
     
-    // Create .devcontainer directory and copy config
-    if (!fs.existsSync('.devcontainer')) {
-      fs.mkdirSync('.devcontainer');
-    }
-    
-    const devcontainerConfig = generateDevcontainerConfig(config);
-    fs.writeFileSync('.devcontainer/devcontainer.json', JSON.stringify(devcontainerConfig, null, 2));
+    // Create container configurations based on strategy
+    await createContainerConfigurations(config);
     
     // Create project-specific files based on type
     await createProjectFiles(config);
@@ -387,20 +827,39 @@ async function setupProject(config) {
 
 function generateDevcontainerConfig(config) {
   const base = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'devcontainer.universal.json'), 'utf8'));
+  const strategy = config.strategy;
   
-  // Customize based on project type
+  // Customize based on project type and strategy
   base.name = `${config.projectName} Dev Environment`;
+  
+  // Configure container setup based on strategy
+  if (strategy.containerStrategy === 'docker-compose') {
+    base.dockerComposeFile = 'docker-compose.yml';
+    base.service = 'app'; // Primary service for development
+    base.workspaceFolder = '/app';
+    delete base.build; // Remove build config when using docker-compose
+  } else if (strategy.containerStrategy === 'docker') {
+    base.build = {
+      dockerfile: 'Dockerfile',
+      context: '.'
+    };
+  }
   
   if (config.projectType === 'react') {
     const backend = config.backend || 'none';
     
     // Update port forwarding based on backend
     if (backend === 'express') {
-      base.forwardPorts = [3000, 3001]; // Client and server ports
+      base.forwardPorts = [3000, 3001, 5432]; // Client, server, and database ports
       base.portsAttributes = {
         "3000": { "label": "React Client" },
-        "3001": { "label": "Express Server" }
+        "3001": { "label": "Express Server" },
+        "5432": { "label": "PostgreSQL Database" }
       };
+      
+      if (strategy.containerStrategy === 'docker-compose') {
+        base.service = 'client'; // Use client service for development
+      }
     } else if (backend === 'nextjs') {
       base.forwardPorts = [3000];
       base.portsAttributes = {
@@ -434,11 +893,23 @@ function generateDevcontainerConfig(config) {
       'ms-python.pylint',
       'ms-python.black-formatter'
     );
+    
+    if (config.includeMl) {
+      base.customizations.vscode.extensions.push(
+        'ms-toolsai.jupyter',
+        'ms-python.vscode-pylance'
+      );
+    }
   }
   
   if (config.features && config.features.includes('playwright')) {
     base.containerEnv.PLAYWRIGHT_BROWSERS_PATH = '/usr/bin';
     base.containerEnv.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = '/usr/bin/chromium';
+  }
+  
+  // Add environment-specific settings
+  if (strategy.environmentConfigs.length > 1) {
+    base.containerEnv.NODE_ENV = 'development';
   }
   
   return base;
@@ -571,17 +1042,116 @@ function generatePackageJson(config) {
 }
 
 function generateReadme(config) {
+  const strategy = config.strategy || {};
+  const backend = config.backend || 'none';
+  
+  let containerSection = '';
+  let deploymentSection = '';
+  let projectStructure = '';
+  
+  // Generate container-specific documentation
+  if (strategy.containerStrategy === 'docker-compose') {
+    containerSection = `### Docker Compose (Multi-Service)
+1. **Development**: \`docker-compose up\`
+2. **VS Code**: Open in DevContainer (uses docker-compose)
+3. **Production**: \`docker-compose -f docker-compose.prod.yml up\`
+
+Services:
+- **Client**: React frontend (port 3000)
+- **Server**: Express API (port 3001)
+- **Database**: PostgreSQL (port 5432)`;
+
+    projectStructure = `\`\`\`
+${config.projectName}/
+├── .devcontainer/          # VS Code dev container configuration
+├── client/                 # React frontend
+│   ├── src/
+│   ├── package.json
+│   └── Dockerfile
+├── server/                 # Express backend
+│   ├── index.js
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml      # Multi-service container config
+├── .env.development        # Development environment variables
+├── .env.staging           # Staging environment variables
+├── .env.production        # Production environment variables
+└── k8s/                   # Kubernetes deployment configs
+\`\`\``;
+  } else if (strategy.containerStrategy === 'docker') {
+    containerSection = `### Docker (Single Service)
+1. **Development**: \`docker build -t ${config.projectName.toLowerCase()} . && docker run -p 3000:3000 ${config.projectName.toLowerCase()}\`
+2. **VS Code**: Open in DevContainer
+3. **Production**: Uses optimized multi-stage build`;
+
+    projectStructure = `\`\`\`
+${config.projectName}/
+├── .devcontainer/          # VS Code dev container configuration
+├── src/                    # Application source code
+├── Dockerfile             # Production-ready container config
+├── .dockerignore          # Docker build exclusions
+├── .env.development       # Development environment variables
+└── k8s/                   # Kubernetes deployment configs
+\`\`\``;
+  } else {
+    containerSection = `### DevContainer Only
+1. **VS Code**: Open in DevContainer (recommended)
+2. **Local**: Run \`npm install && npm run dev\`
+3. **Deploy**: Platform-specific (${strategy.deploymentStrategy})`;
+
+    projectStructure = `\`\`\`
+${config.projectName}/
+├── .devcontainer/          # VS Code dev container configuration
+├── src/                    # Application source code
+├── universal-setup.sh      # Environment setup script
+└── ${backend === 'firebase' ? 'firebase.json' : backend === 'serverless' ? 'vercel.json' : 'package.json'}
+\`\`\``;
+  }
+
+  // Generate deployment-specific documentation
+  if (strategy.deploymentStrategy === 'containerized') {
+    deploymentSection = `
+## 🚀 Deployment (Containerized)
+
+### Kubernetes
+\`\`\`bash
+kubectl apply -f k8s/
+\`\`\`
+
+### Docker
+\`\`\`bash
+docker build -t ${config.projectName.toLowerCase()} .
+docker run -p 3000:3000 ${config.projectName.toLowerCase()}
+\`\`\``;
+  } else if (strategy.deploymentStrategy === 'serverless') {
+    deploymentSection = `
+## 🚀 Deployment (Serverless)
+
+### ${backend === 'firebase' ? 'Firebase' : 'Vercel/Netlify'}
+\`\`\`bash
+${backend === 'firebase' ? 'npm run firebase:deploy' : 'npm run vercel:deploy'}
+\`\`\``;
+  } else if (strategy.deploymentStrategy === 'static') {
+    deploymentSection = `
+## 🚀 Deployment (Static)
+
+### Build and Deploy
+\`\`\`bash
+npm run build
+# Deploy build/ folder to your hosting provider
+\`\`\``;
+  }
+
   return `# ${config.projectName}
 
 ${config.projectType.charAt(0).toUpperCase() + config.projectType.slice(1)} project with universal development environment.
+${backend !== 'none' ? `**Backend**: ${backend.charAt(0).toUpperCase() + backend.slice(1)}` : ''}
+**Container Strategy**: ${strategy.containerStrategy || 'devcontainer'}
+**Deployment Strategy**: ${strategy.deploymentStrategy || 'static'}
 
 ## 🚀 Quick Start
 
-### Using DevContainer (Recommended)
-1. Open this project in VS Code
-2. Install the "Dev Containers" extension
-3. Click "Reopen in Container" when prompted
-4. Wait for the container to build and setup to complete
+${containerSection}
 
 ### Manual Setup
 1. Run the setup script:
@@ -591,7 +1161,7 @@ ${config.projectType.charAt(0).toUpperCase() + config.projectType.slice(1)} proj
 
 2. Install dependencies:
    \`\`\`bash
-   npm install
+   ${strategy.containerStrategy === 'docker-compose' ? 'npm run install-deps' : 'npm install'}
    \`\`\`
 
 3. Start development:
@@ -608,21 +1178,24 @@ ${config.projectType.charAt(0).toUpperCase() + config.projectType.slice(1)} proj
 
 ## 📦 Project Structure
 
-\`\`\`
-${config.projectName}/
-├── .devcontainer/          # VS Code dev container configuration
-├── universal-setup.sh      # Environment setup script
-├── Dockerfile.universal    # Multi-stage Docker configuration
-└── README.md              # This file
-\`\`\`
+${projectStructure}
 
-## 🔧 Customization
+## 🌍 Environment Configuration
 
-Edit \`devcontainer.json\` to customize:
-- VS Code extensions
-- Port forwarding
-- Environment variables
-- Container mounts
+This project uses environment-specific configurations:
+
+${strategy.environmentConfigs && strategy.environmentConfigs.length > 1 ? 
+  strategy.environmentConfigs.map(env => `- **${env}**: \`.env.${env}\``).join('\n') :
+  '- **development**: Local development settings'
+}
+${deploymentSection}
+
+## 🔧 Container Configuration
+
+Edit container settings:
+- **DevContainer**: \`.devcontainer/devcontainer.json\`
+${strategy.containerStrategy === 'docker-compose' ? '- **Docker Compose**: `docker-compose.yml`' : ''}
+${strategy.containerStrategy === 'docker' ? '- **Dockerfile**: `Dockerfile`' : ''}
 
 ## 📚 Documentation
 
@@ -631,6 +1204,7 @@ For more information, see the [Universal Dev Environment documentation](https://
 ---
 
 Generated with Universal Dev Environment v${packageJson.version}
+**Configuration**: ${JSON.stringify(strategy, null, 2)}
 `;
 }
 
@@ -796,6 +1370,31 @@ app.listen(port, () => {
             }
           };
           fs.writeFileSync('client/package.json', JSON.stringify(clientPackageJson, null, 2));
+        }
+        
+        // Create individual Dockerfiles for docker-compose strategy
+        if (config.strategy && config.strategy.containerStrategy === 'docker-compose') {
+          // Client Dockerfile
+          const clientDockerfile = `FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+`;
+          fs.writeFileSync('client/Dockerfile', clientDockerfile);
+          
+          // Server Dockerfile
+          const serverDockerfile = `FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3001
+CMD ["npm", "start"]
+`;
+          fs.writeFileSync('server/Dockerfile', serverDockerfile);
         }
       } else if (backend === 'firebase') {
         // React with Firebase Functions
