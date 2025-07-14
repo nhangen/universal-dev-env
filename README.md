@@ -115,6 +115,8 @@ universal-dev-setup         # Main setup script (direct)
 
 ### Core Development Tools
 - **Node.js & npm** - JavaScript runtime and package manager
+- **Python 3 & pip** - Python runtime and package manager
+- **Conda/Miniconda** - Python environment management (macOS)
 - **Git** - Version control system
 - **Docker** - Container platform (optional on Windows)
 - **VS Code** - Code editor (Windows only, manual on other platforms)
@@ -178,10 +180,13 @@ uds init --type full-stack
 ```bash
 uds init --type python
 ```
-- Flask/Django project structure
-- Virtual environment management
-- Development and production configs
-- Package management with pip
+- Complete Python project structure with `main.py`
+- Automatic conda environment creation (if conda available)
+- Virtual environment setup (fallback)
+- `requirements.txt` with common packages
+- `.env` file for environment variables
+- Python-specific `.gitignore`
+- `activate_env.sh` script for easy activation
 
 ## 🪟 Windows-Specific Setup
 

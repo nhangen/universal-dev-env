@@ -586,6 +586,98 @@ app.listen(port, () => {
         // Basic frontend structure would go here
       }
       break;
+      
+    case 'python':
+      // Create Python project structure
+      if (!fs.existsSync('main.py')) {
+        fs.writeFileSync('main.py', `#!/usr/bin/env python3
+"""
+${config.projectName} - Python Application
+"""
+
+def main():
+    print("🐍 Welcome to ${config.projectName}!")
+    print("Your Python development environment is ready!")
+    
+    # Your code here
+    pass
+
+if __name__ == "__main__":
+    main()
+`);
+      }
+      
+      // Create requirements.txt with common packages
+      if (!fs.existsSync('requirements.txt')) {
+        fs.writeFileSync('requirements.txt', `# Core packages
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Development packages
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Add your project-specific packages below:
+`);
+      }
+      
+      // Create .env file for environment variables
+      if (!fs.existsSync('.env')) {
+        fs.writeFileSync('.env', `# Environment variables for ${config.projectName}
+# Add your configuration here
+
+# Example:
+# DEBUG=True
+# API_KEY=your_api_key_here
+`);
+      }
+      
+      // Create .gitignore for Python
+      if (!fs.existsSync('.gitignore')) {
+        fs.writeFileSync('.gitignore', `# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+`);
+      }
+      break;
   }
 }
 

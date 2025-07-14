@@ -52,6 +52,24 @@ install_system_packages() {
             node \
             || echo "⚠️  Some packages may already be installed"
             
+        # Install conda for Python environment management
+        if ! command -v conda &> /dev/null; then
+            echo "🐍 Installing Miniconda for Python environment management..."
+            curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh -o miniconda.sh
+            bash miniconda.sh -b -p $HOME/miniconda3
+            rm miniconda.sh
+            
+            # Add conda to PATH
+            export PATH="$HOME/miniconda3/bin:$PATH"
+            echo 'export PATH="$HOME/miniconda3/bin:$PATH"' >> ~/.zshrc
+            
+            # Initialize conda
+            $HOME/miniconda3/bin/conda init zsh
+            echo "✅ Miniconda installed and configured"
+        else
+            echo "✅ Conda already installed"
+        fi
+            
     elif [[ "$OS_TYPE" == "alpine" ]]; then
         apk add --no-cache \
             curl \
@@ -312,6 +330,102 @@ EOF
     echo "✅ Development scripts created"
 }
 
+# Function to setup Python environment
+setup_python_environment() {
+    echo "🐍 Setting up Python development environment..."
+    
+    # Check if we have a Python project (look for common Python files)
+    if [[ -f "requirements.txt" || -f "pyproject.toml" || -f "setup.py" || -f "Pipfile" ]]; then
+        PROJECT_HAS_PYTHON=true
+    else
+        # Check if current directory suggests Python project
+        if [[ $(basename "$PWD") == *"python"* ]] || [[ -f "main.py" ]] || [[ -f "app.py" ]]; then
+            PROJECT_HAS_PYTHON=true
+        else
+            PROJECT_HAS_PYTHON=false
+        fi
+    fi
+    
+    if [[ "$PROJECT_HAS_PYTHON" == "true" ]] || command -v conda &> /dev/null; then
+        echo "🔍 Python project detected or conda available"
+        
+        # Get project name for environment
+        PROJECT_NAME=$(basename "$PWD")
+        ENV_NAME="$PROJECT_NAME"
+        
+        if command -v conda &> /dev/null; then
+            echo "📦 Creating conda environment: $ENV_NAME"
+            
+            # Create conda environment if it doesn't exist
+            if ! conda env list | grep -q "^$ENV_NAME "; then
+                conda create -n "$ENV_NAME" python=3.11 -y
+                echo "✅ Conda environment '$ENV_NAME' created"
+            else
+                echo "✅ Conda environment '$ENV_NAME' already exists"
+            fi
+            
+            # Create activation script
+            cat > activate_env.sh << EOF
+#!/bin/bash
+# Activate the conda environment for this project
+echo "🐍 Activating conda environment: $ENV_NAME"
+conda activate $ENV_NAME
+echo "✅ Environment activated. Use 'conda deactivate' to exit."
+EOF
+            
+            chmod +x activate_env.sh
+            
+            # Install common Python packages if requirements exist
+            if [[ -f "requirements.txt" ]]; then
+                echo "📋 Installing packages from requirements.txt..."
+                conda run -n "$ENV_NAME" pip install -r requirements.txt
+                echo "✅ Requirements installed"
+            fi
+            
+            echo "✅ Python conda environment setup complete"
+            echo "   • Run: ./activate_env.sh (or conda activate $ENV_NAME)"
+            echo "   • Deactivate with: conda deactivate"
+            
+        else
+            echo "📦 Creating Python virtual environment: $ENV_NAME"
+            
+            # Create virtual environment if it doesn't exist
+            if [[ ! -d "venv" ]]; then
+                python3 -m venv venv
+                echo "✅ Virtual environment created"
+            else
+                echo "✅ Virtual environment already exists"
+            fi
+            
+            # Create activation script
+            cat > activate_env.sh << EOF
+#!/bin/bash
+# Activate the virtual environment for this project
+echo "🐍 Activating virtual environment"
+source venv/bin/activate
+echo "✅ Environment activated. Use 'deactivate' to exit."
+EOF
+            
+            chmod +x activate_env.sh
+            
+            # Install common Python packages if requirements exist
+            if [[ -f "requirements.txt" ]]; then
+                echo "📋 Installing packages from requirements.txt..."
+                source venv/bin/activate
+                pip install -r requirements.txt
+                deactivate
+                echo "✅ Requirements installed"
+            fi
+            
+            echo "✅ Python virtual environment setup complete"
+            echo "   • Run: ./activate_env.sh (or source venv/bin/activate)"
+            echo "   • Deactivate with: deactivate"
+        fi
+    else
+        echo "ℹ️  No Python project detected, skipping Python environment setup"
+    fi
+}
+
 # Function to display post-installation instructions
 show_post_install_instructions() {
     echo ""
@@ -358,6 +472,7 @@ main() {
     setup_playwright
     setup_user_permissions
     create_dev_scripts
+    setup_python_environment
     
     show_post_install_instructions
     
