@@ -72,6 +72,7 @@ program
   .description('Initialize a new project with universal development environment')
   .option('-t, --type <type>', 'Project type (react, node, python, full-stack)')
   .option('-n, --name <name>', 'Project name')
+  .option('--here', 'Initialize in current directory instead of creating subdirectory')
   .option('--skip-prompts', 'Skip interactive prompts')
   .option('--cache', 'Enable caching for faster setup (default: true)')
   .option('--no-cache', 'Disable caching and download fresh copies')
@@ -135,7 +136,8 @@ program
         projectType: options.type || 'react',
         features: ['ai-cli', 'gcloud', 'github-cli', 'vscode-extensions'],
         baseImage: 'debian',
-        cache: options.cache
+        cache: options.cache,
+        here: options.here
       };
     }
 
@@ -166,6 +168,48 @@ program
     } catch (error) {
       spinner.fail('Installation failed: ' + error.message);
       process.exit(1);
+    }
+  });
+
+program
+  .command('setup')
+  .description('Setup development environment in existing project')
+  .option('--dry-run', 'Show what would be installed without executing')
+  .option('--cache', 'Enable caching for faster setup (default: true)')
+  .option('--no-cache', 'Disable caching and download fresh copies')
+  .action(async (options) => {
+    const spinner = ora('Setting up development environment...').start();
+    
+    try {
+      // First, download the latest universal-setup.sh script
+      const scriptUrl = 'https://raw.githubusercontent.com/nhangen/universal-dev-env/main/universal-setup.sh';
+      const useCache = options.cache !== false;
+      
+      spinner.text = 'Downloading latest setup script...';
+      const scriptContent = await downloadWithCache(scriptUrl, 'universal-setup.sh', useCache);
+      
+      // Write the script to current directory
+      const scriptPath = path.join(process.cwd(), 'universal-setup.sh');
+      fs.writeFileSync(scriptPath, scriptContent);
+      fs.chmodSync(scriptPath, 0o755);
+      
+      if (options.dryRun) {
+        spinner.info('Dry run mode - would execute: ' + scriptPath);
+        return;
+      }
+
+      spinner.text = 'Running setup script...';
+      execSync(`"${scriptPath}"`, { stdio: 'inherit' });
+      
+      spinner.succeed('Development environment setup complete!');
+      console.log(chalk.green('✅ Latest setup script downloaded and executed'));
+      console.log(chalk.blue('📁 Script saved as: universal-setup.sh'));
+    } catch (error) {
+      spinner.fail('Setup failed: ' + error.message);
+      console.log(chalk.yellow('💡 Try running manually:'));
+      console.log(chalk.gray('   curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/universal-setup.sh -o universal-setup.sh'));
+      console.log(chalk.gray('   chmod +x universal-setup.sh'));
+      console.log(chalk.gray('   ./universal-setup.sh'));
     }
   });
 
@@ -217,30 +261,46 @@ async function setupProject(config) {
   }
   
   try {
-    // Create basic project structure
-    if (!fs.existsSync(config.projectName)) {
-      fs.mkdirSync(config.projectName, { recursive: true });
+    // Create basic project structure or use current directory
+    if (config.here) {
+      // Use current directory
+      config.projectName = path.basename(process.cwd());
+      spinner.text = `Setting up project in current directory (${config.projectName})...`;
+    } else {
+      // Create subdirectory
+      if (!fs.existsSync(config.projectName)) {
+        fs.mkdirSync(config.projectName, { recursive: true });
+      }
+      process.chdir(config.projectName);
     }
     
-    process.chdir(config.projectName);
-    
-    // Copy universal setup files
-    const templateDir = path.join(__dirname, '..', 'templates');
+    // Download latest universal setup files
     const universalFiles = [
-      'universal-setup.sh',
-      'Dockerfile.universal',
-      'devcontainer.universal.json'
+      { name: 'universal-setup.sh', url: 'https://raw.githubusercontent.com/nhangen/universal-dev-env/main/universal-setup.sh' },
+      { name: 'Dockerfile.universal', url: 'https://raw.githubusercontent.com/nhangen/universal-dev-env/main/Dockerfile.universal' },
+      { name: 'devcontainer.universal.json', url: 'https://raw.githubusercontent.com/nhangen/universal-dev-env/main/devcontainer.universal.json' }
     ];
     
     for (const file of universalFiles) {
-      const srcPath = path.join(__dirname, '..', file);
-      const destPath = path.join(process.cwd(), file);
-      
-      if (fs.existsSync(srcPath)) {
-        fs.copyFileSync(srcPath, destPath);
+      try {
+        spinner.text = `Downloading ${file.name}...`;
+        const content = await downloadWithCache(file.url, file.name, useCache);
+        const destPath = path.join(process.cwd(), file.name);
+        fs.writeFileSync(destPath, content);
         
-        if (file.endsWith('.sh')) {
-          execSync(`chmod +x "${destPath}"`);
+        if (file.name.endsWith('.sh')) {
+          fs.chmodSync(destPath, 0o755);
+        }
+      } catch (error) {
+        // Fallback to local copy if available
+        const srcPath = path.join(__dirname, '..', file.name);
+        const destPath = path.join(process.cwd(), file.name);
+        
+        if (fs.existsSync(srcPath)) {
+          fs.copyFileSync(srcPath, destPath);
+          if (file.name.endsWith('.sh')) {
+            fs.chmodSync(destPath, 0o755);
+          }
         }
       }
     }
@@ -609,6 +669,53 @@ function clearCache() {
     console.log(chalk.green('🗑️  Cache cleared'));
   }
 }
+
+// Add uninstall command
+program
+  .command('uninstall')
+  .description('Completely remove Universal Dev Environment')
+  .option('--yes', 'Skip confirmation prompts')
+  .action(async (options) => {
+    console.log(chalk.red.bold('🗑️  Universal Dev Environment - Uninstall'));
+    console.log(chalk.gray('='.repeat(50)));
+    
+    if (!options.yes) {
+      const { confirmed } = await inquirer.prompt([{
+        type: 'confirm',
+        name: 'confirmed',
+        message: 'Are you sure you want to uninstall Universal Dev Environment?',
+        default: false
+      }]);
+      
+      if (!confirmed) {
+        console.log(chalk.yellow('❌ Uninstall cancelled'));
+        return;
+      }
+    }
+    
+    try {
+      // Download and run uninstall script
+      const uninstallUrl = 'https://raw.githubusercontent.com/nhangen/universal-dev-env/main/uninstall.sh';
+      console.log(chalk.yellow('📥 Downloading uninstall script...'));
+      
+      const uninstallScript = await downloadWithCache(uninstallUrl, 'uninstall.sh', false); // Don't cache uninstall
+      const scriptPath = path.join(process.cwd(), 'uninstall.sh');
+      fs.writeFileSync(scriptPath, uninstallScript);
+      fs.chmodSync(scriptPath, 0o755);
+      
+      console.log(chalk.blue('🚀 Running uninstall script...'));
+      execSync(`"${scriptPath}"`, { stdio: 'inherit' });
+      
+      // Clean up the uninstall script
+      fs.unlinkSync(scriptPath);
+      
+      console.log(chalk.green('✅ Uninstall complete!'));
+    } catch (error) {
+      console.error(chalk.red('❌ Uninstall failed:', error.message));
+      console.log(chalk.yellow('💡 Try running manually:'));
+      console.log(chalk.gray('   curl -fsSL https://raw.githubusercontent.com/nhangen/universal-dev-env/main/uninstall.sh | bash'));
+    }
+  });
 
 // Add cache management commands
 program

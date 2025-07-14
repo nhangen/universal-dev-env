@@ -82,9 +82,14 @@ choco install universal-dev-env
 
 ### Initialize New Project
 ```bash
+# Create new project directory
 mkdir my-awesome-project
 cd my-awesome-project
 uds init
+
+# OR initialize in current directory (no subdirectory created)
+cd my-existing-directory
+uds init --here
 ```
 
 ### Setup Existing Project
@@ -96,9 +101,11 @@ uds setup
 ### Available Commands
 ```bash
 uds init                    # Initialize project with dev environment
+uds init --here             # Initialize in current directory (no subdirectory)
 uds init --no-cache         # Initialize without caching (fresh downloads)
-uds setup                   # Install development tools
+uds setup                   # Install development tools in existing project
 uds update                  # Update to latest version
+uds uninstall               # Completely remove Universal Dev Environment
 uds cache --info            # Show cache information
 uds cache --clear           # Clear cached files
 universal-dev-setup         # Main setup script (direct)
@@ -438,7 +445,14 @@ chmod +x universal-setup.sh
 
 ### Uninstall Guide
 
-**Remove NPM Package:**
+**One-Command Uninstall:**
+```bash
+uds uninstall  # Interactive uninstall with options
+# OR
+uds uninstall --yes  # Skip confirmations
+```
+
+**Manual NPM Package Removal:**
 ```bash
 npm uninstall -g @nhangen/universal-dev-env
 ```
