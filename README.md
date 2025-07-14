@@ -90,6 +90,9 @@ uds init
 # OR initialize in current directory (no subdirectory created)
 cd my-existing-directory
 uds init --here
+
+# OR initialize Python ML project with one command
+uds init --type python --ml --here
 ```
 
 ### Setup Existing Project
@@ -102,6 +105,7 @@ uds setup
 ```bash
 uds init                    # Initialize project with dev environment
 uds init --here             # Initialize in current directory (no subdirectory)
+uds init --type python --ml # Initialize Python project with ML libraries
 uds init --no-cache         # Initialize without caching (fresh downloads)
 uds setup                   # Install development tools in existing project
 uds update                  # Update to latest version
@@ -181,12 +185,15 @@ uds init --type full-stack
 uds init --type python
 ```
 - Complete Python project structure with `main.py`
+- **Optional ML Libraries**: Prompted to install NumPy, Pandas, Scikit-learn, Jupyter, etc.
+- **Smart ML Setup**: Conda installs ML libraries for better performance
 - Automatic conda environment creation (if conda available)
 - Virtual environment setup (fallback)
-- `requirements.txt` with common packages
+- `requirements.txt` with ML or standard packages
 - `.env` file for environment variables
 - Python-specific `.gitignore`
 - `activate_env.sh` script for easy activation
+- **ML starter code** with sample dataset and basic workflow
 
 ## 🪟 Windows-Specific Setup
 

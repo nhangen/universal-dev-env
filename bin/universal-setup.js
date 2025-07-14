@@ -73,6 +73,7 @@ program
   .option('-t, --type <type>', 'Project type (react, node, python, full-stack)')
   .option('-n, --name <name>', 'Project name')
   .option('--here', 'Initialize in current directory instead of creating subdirectory')
+  .option('--ml', 'Include ML libraries for Python projects')
   .option('--skip-prompts', 'Skip interactive prompts')
   .option('--cache', 'Enable caching for faster setup (default: true)')
   .option('--no-cache', 'Disable caching and download fresh copies')
@@ -129,6 +130,19 @@ program
         }
       ]);
 
+      // If Python project is selected, ask about ML libraries
+      if (answers.projectType === 'python') {
+        const mlPrompt = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'includeMl',
+            message: '🤖 Install Machine Learning libraries? (NumPy, Pandas, Scikit-learn, etc.)',
+            default: false
+          }
+        ]);
+        answers.includeMl = mlPrompt.includeMl;
+      }
+
       config = { ...options, ...answers };
     } else {
       config = {
@@ -137,7 +151,8 @@ program
         features: ['ai-cli', 'gcloud', 'github-cli', 'vscode-extensions'],
         baseImage: 'debian',
         cache: options.cache,
-        here: options.here
+        here: options.here,
+        includeMl: options.ml || false  // Use --ml flag or default to false
       };
     }
 
@@ -590,26 +605,67 @@ app.listen(port, () => {
     case 'python':
       // Create Python project structure
       if (!fs.existsSync('main.py')) {
-        fs.writeFileSync('main.py', `#!/usr/bin/env python3
+        let mainPyContent = `#!/usr/bin/env python3
 """
 ${config.projectName} - Python Application
 """
+`;
 
+        if (config.includeMl) {
+          mainPyContent += `
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+def main():
+    print("🤖 Welcome to ${config.projectName} - ML Project!")
+    print("Your Machine Learning development environment is ready!")
+    
+    # Example: Create sample data
+    print("\\n📊 Creating sample dataset...")
+    np.random.seed(42)
+    data = {
+        'feature1': np.random.randn(100),
+        'feature2': np.random.randn(100),
+        'target': np.random.randint(0, 2, 100)
+    }
+    df = pd.DataFrame(data)
+    print(f"Dataset shape: {df.shape}")
+    print(df.head())
+    
+    # Example: Basic ML workflow
+    X = df[['feature1', 'feature2']]
+    y = df['target']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    print(f"\\n🔍 Train set: {X_train.shape}, Test set: {X_test.shape}")
+    
+    # Your ML code here
+    print("\\n🚀 Ready for your machine learning project!")
+    print("💡 Tip: Use 'jupyter notebook' to start interactive development")
+`;
+        } else {
+          mainPyContent += `
 def main():
     print("🐍 Welcome to ${config.projectName}!")
     print("Your Python development environment is ready!")
     
     # Your code here
     pass
+`;
+        }
 
+        mainPyContent += `
 if __name__ == "__main__":
     main()
-`);
+`;
+        
+        fs.writeFileSync('main.py', mainPyContent);
       }
       
       // Create requirements.txt with common packages
       if (!fs.existsSync('requirements.txt')) {
-        fs.writeFileSync('requirements.txt', `# Core packages
+        let requirements = `# Core packages
 requests>=2.31.0
 python-dotenv>=1.0.0
 
@@ -617,9 +673,37 @@ python-dotenv>=1.0.0
 pytest>=7.0.0
 black>=23.0.0
 flake8>=6.0.0
+`;
 
+        // Add ML libraries if requested
+        if (config.includeMl) {
+          requirements += `
+# Machine Learning & Data Science
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+jupyter>=1.0.0
+ipykernel>=6.25.0
+
+# Optional ML libraries (uncomment as needed)
+# tensorflow>=2.13.0
+# torch>=2.0.0
+# transformers>=4.30.0
+# opencv-python>=4.8.0
+# plotly>=5.15.0
+# xgboost>=1.7.0
+# lightgbm>=4.0.0
+`;
+        }
+
+        requirements += `
 # Add your project-specific packages below:
-`);
+`;
+        
+        fs.writeFileSync('requirements.txt', requirements);
+      }
       }
       
       // Create .env file for environment variables

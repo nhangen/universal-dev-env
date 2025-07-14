@@ -378,7 +378,19 @@ EOF
             # Install common Python packages if requirements exist
             if [[ -f "requirements.txt" ]]; then
                 echo "📋 Installing packages from requirements.txt..."
-                conda run -n "$ENV_NAME" pip install -r requirements.txt
+                
+                # Check if this is an ML project (contains ML libraries)
+                if grep -q "numpy\|pandas\|scikit-learn\|tensorflow\|torch" requirements.txt; then
+                    echo "🤖 ML libraries detected - installing with conda for better performance..."
+                    # Install ML base packages via conda (faster, better optimized)
+                    conda install -n "$ENV_NAME" -c conda-forge numpy pandas scikit-learn matplotlib seaborn jupyter -y
+                    # Install remaining packages via pip
+                    conda run -n "$ENV_NAME" pip install -r requirements.txt
+                else
+                    # Regular packages via pip
+                    conda run -n "$ENV_NAME" pip install -r requirements.txt
+                fi
+                
                 echo "✅ Requirements installed"
             fi
             
