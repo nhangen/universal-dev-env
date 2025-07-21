@@ -311,25 +311,39 @@ function selectConfigurationStrategy(config) {
     strategy.containerStrategy = 'docker-compose'; // Multi-service
     strategy.deploymentStrategy = 'containerized';
     strategy.environmentConfigs = ['development', 'staging', 'production'];
+    strategy.installLocation = 'container'; // Install tools in container
   } else if (config.projectType === 'full-stack') {
     strategy.containerStrategy = 'docker-compose';
     strategy.deploymentStrategy = 'containerized';
     strategy.environmentConfigs = ['development', 'staging', 'production'];
+    strategy.installLocation = 'container';
   } else if (config.projectType === 'react' && ['firebase', 'serverless'].includes(config.backend)) {
     strategy.containerStrategy = 'devcontainer'; // Development only
     strategy.deploymentStrategy = 'serverless';
     strategy.configFormat = 'yaml'; // Serverless often uses YAML
+    strategy.installLocation = 'host'; // CLI tools needed on host for deployment
   } else if (config.projectType === 'react' && config.backend === 'nextjs') {
     strategy.containerStrategy = 'docker'; // Single service
     strategy.deploymentStrategy = 'hybrid'; // Can be static or containerized
+    strategy.installLocation = 'container';
   } else if (config.projectType === 'python') {
     strategy.containerStrategy = 'docker';
     strategy.deploymentStrategy = 'containerized';
     strategy.configFormat = 'yaml'; // Python ecosystem often uses YAML
+    strategy.installLocation = 'container';
   } else {
     strategy.containerStrategy = 'devcontainer';
     strategy.deploymentStrategy = 'static';
+    strategy.installLocation = 'host'; // Simple projects use host tools
   }
+
+  // Determine which tools should be included based on strategy
+  strategy.includeTools = {
+    essentials: true, // Always include: Node.js, Python, Git, Docker
+    aiClis: strategy.installLocation === 'host', // Claude, Gemini - only on host
+    cloudClis: strategy.deploymentStrategy === 'serverless' || strategy.installLocation === 'host', // gcloud, gh
+    heavyTools: strategy.installLocation === 'host' // Playwright, browsers
+  };
 
   // Add additional configs based on features
   if (config.features && config.features.includes('playwright')) {
@@ -424,6 +438,8 @@ async function createEnvironmentConfigs(config) {
 
 function generateDockerfile(config) {
   const backend = config.backend || 'none';
+  const strategy = config.strategy || {};
+  const includeTools = strategy.includeTools || {};
   
   if (config.projectType === 'react' && backend === 'nextjs') {
     return `# Next.js Production Dockerfile
@@ -466,12 +482,17 @@ ENV PORT 3000
 CMD ["node", "server.js"]
 `;
   } else if (config.projectType === 'python') {
+    // Python containers are typically lightweight for production
+    const mlPackages = config.includeMl && includeTools.heavyTools ? `
+# ML libraries (only if needed and heavy tools allowed)
+RUN pip install --no-cache-dir numpy pandas scikit-learn matplotlib seaborn jupyter` : '';
+    
     return `# Python Application Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install only essential system dependencies
 RUN apt-get update && apt-get install -y \\
     build-essential \\
     curl \\
@@ -479,7 +500,7 @@ RUN apt-get update && apt-get install -y \\
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt${mlPackages}
 
 # Copy application code
 COPY . .
@@ -494,7 +515,7 @@ EXPOSE 8000
 CMD ["python", "main.py"]
 `;
   } else {
-    // Generic Node.js Dockerfile
+    // Generic Node.js Dockerfile - lightweight for containers
     return `# Node.js Application Dockerfile
 FROM node:18-alpine
 
@@ -828,6 +849,7 @@ async function setupProject(config) {
 function generateDevcontainerConfig(config) {
   const base = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'devcontainer.universal.json'), 'utf8'));
   const strategy = config.strategy;
+  const includeTools = strategy.includeTools || {};
   
   // Customize based on project type and strategy
   base.name = `${config.projectName} Dev Environment`;
@@ -843,6 +865,31 @@ function generateDevcontainerConfig(config) {
       dockerfile: 'Dockerfile',
       context: '.'
     };
+  }
+  
+  // Only include heavy features in DevContainer (not production containers)
+  if (strategy.containerStrategy === 'devcontainer') {
+    // DevContainer gets all tools since it's development-only
+    base.features = base.features || {};
+    
+    if (includeTools.cloudClis) {
+      base.features["ghcr.io/devcontainers/features/github-cli:1"] = {};
+      base.features["ghcr.io/devcontainers/features/google-cloud-cli:1"] = {};
+    }
+    
+    if (includeTools.heavyTools && config.features && config.features.includes('playwright')) {
+      base.features["ghcr.io/devcontainers/features/playwright:1"] = {};
+    }
+  } else {
+    // Production containers: remove heavy features
+    base.features = {
+      "ghcr.io/devcontainers/features/node:1": {},
+      "ghcr.io/devcontainers/features/git:1": {}
+    };
+    
+    if (config.projectType === 'python') {
+      base.features["ghcr.io/devcontainers/features/python:1"] = {};
+    }
   }
   
   if (config.projectType === 'react') {
@@ -1148,6 +1195,7 @@ ${config.projectType.charAt(0).toUpperCase() + config.projectType.slice(1)} proj
 ${backend !== 'none' ? `**Backend**: ${backend.charAt(0).toUpperCase() + backend.slice(1)}` : ''}
 **Container Strategy**: ${strategy.containerStrategy || 'devcontainer'}
 **Deployment Strategy**: ${strategy.deploymentStrategy || 'static'}
+**Tool Installation**: ${strategy.installLocation || 'host'} (${strategy.includeTools?.aiClis ? 'includes AI/Cloud CLIs' : 'lightweight setup'})
 
 ## 🚀 Quick Start
 
@@ -1171,10 +1219,38 @@ ${containerSection}
 
 ## 🛠️ Available Tools
 
+### Essential Tools (Always Included)
+- **Node.js & npm**: JavaScript runtime and package manager
+- **Git**: Version control system
+- **Docker**: Container platform (when using containers)
+${config.projectType === 'python' ? '- **Python**: Python runtime and pip package manager' : ''}
+
+### Context-Aware Tool Installation
+The system intelligently includes tools based on your project setup:
+
+${strategy.includeTools?.aiClis ? `
+#### AI & Cloud CLI Tools (Host Installation)
 - **Claude CLI**: \`claude\` - AI-powered development assistant
-- **Gemini CLI**: \`gemini\` - Google's AI CLI tool
+- **Gemini CLI**: \`gemini\` - Google's AI CLI tool` : ''}
+
+${strategy.includeTools?.cloudClis ? `
+#### Cloud & Deployment Tools
 - **GitHub CLI**: \`gh\` - GitHub command line interface
-- **Google Cloud CLI**: \`gcloud\` - Cloud deployment and management
+- **Google Cloud CLI**: \`gcloud\` - Cloud deployment and management` : ''}
+
+${strategy.includeTools?.heavyTools ? `
+#### Development Tools (Development Only)
+- **Playwright**: Web automation and testing
+- **Browser runtimes**: Chromium, Firefox` : ''}
+
+${!strategy.includeTools?.aiClis ? `
+#### Lightweight Container Setup
+This project uses a **lightweight container configuration** that excludes heavy CLI tools to optimize:
+- **Container size**: Faster builds and deployments
+- **Security**: Minimal attack surface
+- **Performance**: Reduced memory and CPU usage
+
+*Heavy tools like Claude CLI, Google Cloud CLI are installed on the host system instead.*` : ''}
 
 ## 📦 Project Structure
 
@@ -2015,3 +2091,14 @@ program
   });
 
 program.parse();
+
+// Export functions for testing
+module.exports = {
+  selectConfigurationStrategy,
+  generateDockerfile,
+  generateDockerCompose,
+  generateDevcontainerConfig,
+  generateEnvironmentConfig,
+  generateKubernetesDeployment,
+  generateKubernetesService
+};
