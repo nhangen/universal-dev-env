@@ -75,6 +75,7 @@ program
   .option('--here', 'Initialize in current directory instead of creating subdirectory')
   .option('--ml', 'Include ML libraries for Python projects')
   .option('--backend <backend>', 'Backend for React projects (none, express, nextjs, firebase, serverless)')
+  .option('--ai-context', 'Generate AI context file for Claude/Gemini/Copilot shared memory')
   .option('--skip-prompts', 'Skip interactive prompts')
   .option('--cache', 'Enable caching for faster setup (default: true)')
   .option('--no-cache', 'Disable caching and download fresh copies')
@@ -128,6 +129,12 @@ program
             { name: '🖥️  Debian/Ubuntu (Compatible)', value: 'debian' }
           ],
           default: 'debian'
+        },
+        {
+          type: 'confirm',
+          name: 'aiContext',
+          message: '🧠 Generate AI context file for shared Claude/Gemini/Copilot memory?',
+          default: true
         }
       ]);
 
@@ -174,7 +181,8 @@ program
         cache: options.cache,
         here: options.here,
         includeMl: options.ml || false,  // Use --ml flag or default to false
-        backend: options.backend || 'none'  // Use --backend flag or default to none
+        backend: options.backend || 'none',  // Use --backend flag or default to none
+        aiContext: options.aiContext || false  // Use --ai-context flag or default to false
       };
     }
 
@@ -831,6 +839,22 @@ async function setupProject(config) {
     const readme = generateReadme(config);
     fs.writeFileSync('README.md', readme);
     
+    // Create AI context file if requested
+    if (config.aiContext) {
+      if (!fs.existsSync('.ai')) {
+        fs.mkdirSync('.ai');
+      }
+      const aiContext = generateAIContext(config);
+      fs.writeFileSync('.ai/context.md', aiContext);
+      
+      // Create additional AI context files
+      const recentWork = generateRecentWork(config);
+      fs.writeFileSync('.ai/recent-work.md', recentWork);
+      
+      const preferences = generatePreferences(config);
+      fs.writeFileSync('.ai/preferences.md', preferences);
+    }
+    
     spinner.succeed(`Project "${config.projectName}" created successfully!`);
     
     console.log(chalk.green.bold('\\n🎉 Setup Complete!'));
@@ -957,6 +981,25 @@ function generateDevcontainerConfig(config) {
   // Add environment-specific settings
   if (strategy.environmentConfigs.length > 1) {
     base.containerEnv.NODE_ENV = 'development';
+  }
+  
+  // Add AI context persistence if enabled
+  if (config.aiContext) {
+    // Add volume mounts for AI tool persistence
+    base.mounts = base.mounts || [];
+    base.mounts.push(
+      "source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/claude-code,target=/home/vscode/.config/claude-code,type=bind",
+      "source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/gemini,target=/home/vscode/.config/gemini,type=bind"
+    );
+    
+    // Add container environment variables for AI context
+    base.containerEnv = base.containerEnv || {};
+    base.containerEnv.AI_CONTEXT_DIR = "/workspace/.ai";
+    base.containerEnv.AI_CONTEXT_FILE = "/workspace/.ai/context.md";
+    
+    // Add post-create command to display AI context info
+    base.postCreateCommand = base.postCreateCommand || "";
+    base.postCreateCommand += " && echo '🧠 AI Context created: .ai/ folder with context.md' && echo '📋 Claude/Gemini settings will persist across container rebuilds'";
   }
   
   return base;
@@ -1281,6 +1324,435 @@ For more information, see the [Universal Dev Environment documentation](https://
 
 Generated with Universal Dev Environment v${packageJson.version}
 **Configuration**: ${JSON.stringify(strategy, null, 2)}
+`;
+}
+
+function generateAIContext(config) {
+  const strategy = config.strategy || {};
+  const backend = config.backend || 'none';
+  const timestamp = new Date().toISOString().split('T')[0];
+  
+  return `# AI Context for ${config.projectName}
+
+> **🤖 AI Assistant Instructions**: Please read this entire file before responding to any questions about this project. This provides essential context for maintaining consistency across Claude, Gemini, and GitHub Copilot.
+> 
+> **Additional Context Files**:
+> - \`.ai/recent-work.md\` - Latest development sessions and changes
+> - \`.ai/preferences.md\` - Coding patterns and project preferences
+
+## 📋 Project Overview
+
+**Project**: ${config.projectName}
+**Type**: ${config.projectType.charAt(0).toUpperCase() + config.projectType.slice(1)}
+${backend !== 'none' ? `**Backend**: ${backend.charAt(0).toUpperCase() + backend.slice(1)}` : ''}
+**Container Strategy**: ${strategy.containerStrategy || 'devcontainer'}
+**Deployment Strategy**: ${strategy.deploymentStrategy || 'static'}
+**Tool Installation**: ${strategy.installLocation || 'host'} (${strategy.includeTools?.aiClis ? 'includes AI/Cloud CLIs' : 'lightweight setup'})
+**Created**: ${timestamp}
+
+## 🚀 Quick Start Prompt
+
+**Use this when starting new conversations:**
+"This is a ${config.projectType}${backend !== 'none' ? ` + ${backend}` : ''} project using ${strategy.containerStrategy || 'devcontainer'} strategy. ${strategy.includeTools?.aiClis ? 'Full AI/Cloud tooling available.' : 'Lightweight container setup excludes heavy CLI tools.'} Current focus: ${backend === 'express' ? 'Full-stack development with React frontend and Express backend.' : backend === 'nextjs' ? 'Next.js full-stack development.' : backend === 'firebase' ? 'Serverless development with Firebase Functions.' : 'Frontend development.'}"
+
+## 🏗️ Architecture & Setup
+
+### Container Configuration
+- **Strategy**: ${strategy.containerStrategy || 'devcontainer'}
+- **Environment Configs**: ${strategy.environmentConfigs ? strategy.environmentConfigs.join(', ') : 'development'}
+- **Port Forwarding**: ${backend === 'express' ? 'Client (3000), Server (3001), Database (5432)' : backend === 'nextjs' ? 'App (3000)' : backend === 'firebase' ? 'App (3000), Functions (5001), Auth (9099)' : 'App (3000)'}
+
+### Development Tools
+${strategy.includeTools?.aiClis ? `
+#### AI & Cloud Tools (Host Installation)
+- Claude CLI, Gemini CLI available on host
+- GitHub CLI, Google Cloud CLI for deployment` : ''}
+${strategy.includeTools?.heavyTools ? `
+#### Heavy Development Tools
+- Playwright for web automation
+- Browser runtimes included` : ''}
+
+${!strategy.includeTools?.aiClis ? `
+#### Lightweight Container Setup
+**Note**: This project uses lightweight containers that exclude heavy CLI tools to optimize:
+- Container size (50-80% reduction)
+- Build/deployment speed
+- Security (minimal attack surface)
+
+*Heavy tools like Claude CLI, Google Cloud CLI are on the host system, not in containers.*` : ''}
+
+## 🔧 Technical Stack
+
+**Frontend**: ${config.projectType === 'react' ? 'React 18.2.0' : config.projectType === 'node' ? 'Node.js Server' : config.projectType === 'python' ? 'Python 3.11' : 'Web Application'}
+${backend === 'express' ? '**Backend**: Express.js 4.18.0 with PostgreSQL database' : ''}
+${backend === 'nextjs' ? '**Framework**: Next.js 14.0.0 (full-stack)' : ''}
+${backend === 'firebase' ? '**Backend**: Firebase Functions with Firestore' : ''}
+${backend === 'serverless' ? '**Functions**: Vercel/Netlify Edge Functions' : ''}
+${config.includeMl ? '**ML Libraries**: NumPy, Pandas, Scikit-learn, Jupyter' : ''}
+
+### File Structure
+\`\`\`
+${config.projectName}/
+${backend === 'express' ? `├── client/                 # React frontend
+│   ├── src/
+│   ├── package.json
+│   └── Dockerfile          # (if using docker-compose)
+├── server/                 # Express backend
+│   ├── index.js
+│   ├── package.json
+│   └── Dockerfile          # (if using docker-compose)
+├── docker-compose.yml      # Multi-service setup` : 
+  backend === 'nextjs' ? `├── pages/                  # Next.js pages
+│   ├── index.js
+│   └── api/               # API routes
+├── Dockerfile             # Production build` :
+  backend === 'firebase' ? `├── src/                    # React frontend
+├── functions/             # Firebase Functions
+│   ├── index.js
+│   └── package.json
+├── firebase.json          # Firebase config` : `├── src/                    # Application code`}
+├── .devcontainer/         # VS Code dev container config
+${strategy.environmentConfigs && strategy.environmentConfigs.length > 1 ? 
+  strategy.environmentConfigs.map(env => `├── .env.${env}             # ${env.charAt(0).toUpperCase() + env.slice(1)} environment`).join('\n') :
+  '├── .env                   # Environment variables'
+}
+${strategy.deploymentStrategy === 'containerized' ? '└── k8s/                   # Kubernetes configs' : ''}
+\`\`\`
+
+## 💻 Development Commands
+
+**Start Development:**
+\`\`\`bash
+${strategy.containerStrategy === 'docker-compose' ? 'docker-compose up' : 
+  strategy.containerStrategy === 'docker' ? 'docker build -t ' + config.projectName.toLowerCase() + ' . && docker run -p 3000:3000 ' + config.projectName.toLowerCase() :
+  'npm run dev'}
+\`\`\`
+
+**VS Code DevContainer:**
+1. Open project in VS Code
+2. Install "Dev Containers" extension  
+3. Click "Reopen in Container"
+4. Container will auto-configure
+
+**Installation:**
+\`\`\`bash
+${backend === 'express' ? 'npm run install-deps  # Installs client, server, and root dependencies' : 'npm install'}
+\`\`\`
+
+## 🧠 AI Tool Persistence Instructions
+
+### Claude CLI Persistence
+**Settings Location**: \`~/.config/claude-code/settings.local.json\`
+**Container Mount**: Ensure this path is mounted as volume in DevContainer
+**Authentication**: Re-authenticate if settings don't persist: \`claude auth login\`
+
+### Gemini CLI Persistence  
+**Settings Location**: \`~/.config/gemini/settings.json\`
+**State File**: \`~/.config/gemini/state_snapshot.xml\`
+**Container Mount**: Both files need volume mounting for persistence
+**Authentication**: Check \`gemini auth status\` if login is lost
+
+### GitHub Copilot Persistence
+**VS Code Settings**: Automatically persists via VS Code settings sync
+**Authentication**: Uses VS Code's GitHub authentication (should persist)
+
+### DevContainer Volume Mounts
+**Add to .devcontainer/devcontainer.json:**
+\`\`\`json
+{
+  "mounts": [
+    "source=\${localEnv:HOME}\${localEnv:USERPROFILE}/.config/claude-code,target=/home/vscode/.config/claude-code,type=bind",
+    "source=\${localEnv:HOME}\${localEnv:USERPROFILE}/.config/gemini,target=/home/vscode/.config/gemini,type=bind"
+  ]
+}
+\`\`\`
+
+## 📝 Recent Decisions & Context
+
+### Container Strategy Decision
+- **Chosen**: ${strategy.containerStrategy || 'devcontainer'} for ${strategy.containerStrategy === 'docker-compose' ? 'multi-service architecture' : strategy.containerStrategy === 'docker' ? 'single-service optimization' : 'development simplicity'}
+- **Reasoning**: ${strategy.containerStrategy === 'docker-compose' ? 'Complex multi-service setup requires orchestration' : strategy.containerStrategy === 'docker' ? 'Single service benefits from optimized production builds' : 'Simple projects work best with development-focused containers'}
+
+### Tool Installation Strategy
+- **Heavy Tools**: ${strategy.includeTools?.aiClis ? 'Included on host for full development experience' : 'Excluded from containers for performance (installed on host instead)'}
+- **Impact**: ${strategy.includeTools?.aiClis ? 'Rich development environment with all AI/Cloud tools' : '50-80% smaller containers, faster builds, better security'}
+
+${config.includeMl ? `
+### ML Library Integration
+- **Approach**: Conda environment with optimized ML package installation
+- **Libraries**: NumPy, Pandas, Scikit-learn, Jupyter for data science workflow
+- **Environment**: Separate conda environment for project isolation
+` : ''}
+
+## 🎯 Current Development Focus
+
+**Primary Goal**: Setting up ${config.projectType}${backend !== 'none' ? ` + ${backend}` : ''} development environment
+**Next Steps**: 
+1. Complete environment setup and tool configuration
+2. ${backend === 'express' ? 'Implement API endpoints and database schema' : backend === 'nextjs' ? 'Set up pages and API routes' : backend === 'firebase' ? 'Configure Firebase project and functions' : 'Build core application features'}
+3. Set up development workflow and testing
+
+**Architecture Notes**: 
+- ${strategy.includeTools?.aiClis ? 'Full tooling setup with AI/Cloud CLIs available' : 'Lightweight container approach with tools on host'}
+- ${strategy.environmentConfigs && strategy.environmentConfigs.length > 1 ? 'Multi-environment configuration (dev/staging/prod)' : 'Single environment setup'}
+- ${strategy.deploymentStrategy === 'containerized' ? 'Kubernetes-ready with production deployment configs' : strategy.deploymentStrategy === 'serverless' ? 'Serverless deployment with cloud functions' : 'Static deployment strategy'}
+
+## 🤝 AI Collaboration Notes
+
+**Coding Preferences**:
+${config.projectType === 'react' ? '- React functional components with hooks' : ''}
+${config.projectType === 'react' ? '- Modern JavaScript/TypeScript patterns' : ''}
+${config.projectType === 'python' ? '- Python 3.11+ features and best practices' : ''}
+${config.includeMl ? '- Data science workflow with Jupyter notebooks' : ''}
+${backend === 'express' ? '- RESTful API design with Express.js' : ''}
+- Container-first development approach
+- Environment-specific configurations
+
+**Project Context Sharing**:
+- All AI tools should reference this file for consistency
+- Update this file when making architectural decisions
+- Include relevant context in prompts: "Based on AI_CONTEXT.md..."
+
+---
+
+*Generated by Universal Dev Environment v${packageJson.version} on ${timestamp}*
+*AI Context Version: 1.0 - Update this file when project architecture changes*
+
+<!-- AI Tool Hints -->
+<!-- Claude: Lightweight ${strategy.containerStrategy || 'devcontainer'} setup with ${strategy.includeTools?.aiClis ? 'full tooling' : 'host-based tools'} -->
+<!-- Copilot: ${config.projectType} + ${backend !== 'none' ? backend : 'frontend-only'} architecture -->  
+<!-- Gemini: Port ${backend === 'express' ? '3000 (client), 3001 (server), 5432 (db)' : '3000'} for development -->
+`;
+}
+
+function generateRecentWork(config) {
+  const timestamp = new Date().toISOString().split('T')[0];
+  const backend = config.backend || 'none';
+  
+  return `# Recent Work - ${config.projectName}
+
+> **Last Updated**: ${timestamp}
+> **AI Instructions**: This file tracks recent development sessions. Update it as you work to maintain context between AI conversations.
+
+## 📅 Recent Sessions
+
+### Session 1: Initial Project Setup (${timestamp})
+**Focus**: Setting up ${config.projectType}${backend !== 'none' ? ` + ${backend}` : ''} development environment
+
+**Completed**:
+- ✅ Generated project structure with Universal Dev Environment v${packageJson.version}
+- ✅ Configured ${config.strategy?.containerStrategy || 'devcontainer'} container strategy
+- ✅ Set up ${config.strategy?.includeTools?.aiClis ? 'full AI/Cloud tooling' : 'lightweight containers with host-based tools'}
+${config.includeMl ? '- ✅ Configured ML environment with conda and data science libraries' : ''}
+
+**Next Steps**:
+1. Complete development environment testing
+2. ${backend === 'express' ? 'Set up database schema and API endpoints' : backend === 'nextjs' ? 'Create initial pages and API routes' : backend === 'firebase' ? 'Configure Firebase project and deploy functions' : 'Build core application features'}
+3. Implement core application functionality
+
+**Current Blockers**: None
+
+---
+
+## 📝 Development Log Template
+
+### Session [N]: [Focus Area] ([Date])
+**Focus**: [What you're working on]
+
+**Completed**:
+- [ ] Task 1
+- [ ] Task 2
+
+**Next Steps**:
+1. [Next priority item]
+2. [Secondary item]
+
+**Current Blockers**: [Any issues blocking progress]
+
+---
+
+*Keep the last 5-10 sessions for context. Archive older sessions.*
+`;
+}
+
+function generatePreferences(config) {
+  const backend = config.backend || 'none';
+  
+  return `# Development Preferences - ${config.projectName}
+
+> **AI Instructions**: These are the coding patterns and preferences for this project. Reference these when generating code or making architectural suggestions.
+
+## 🎨 Code Style & Patterns
+
+### General Preferences
+- **Code Style**: Clean, readable, well-documented
+- **Architecture**: ${config.strategy?.containerStrategy === 'docker-compose' ? 'Microservices with Docker Compose' : config.strategy?.containerStrategy === 'docker' ? 'Containerized single-service' : 'Development-focused with DevContainer'}
+- **Environment**: ${config.strategy?.environmentConfigs?.length > 1 ? 'Multi-environment (dev/staging/prod)' : 'Single environment setup'}
+
+### Language-Specific
+${config.projectType === 'react' ? `
+#### React/JavaScript
+- **Components**: Functional components with hooks (no class components)
+- **State Management**: ${backend === 'nextjs' ? 'Next.js built-in state + Context API' : 'Context API for global state, useState for local'}
+- **Styling**: CSS modules or styled-components (avoid inline styles)
+- **Testing**: Jest + React Testing Library
+- **TypeScript**: Preferred for new features (gradual adoption)
+
+#### Code Examples
+\`\`\`jsx
+// Preferred component pattern
+import React, { useState, useEffect } from 'react';
+
+const MyComponent = ({ prop1, prop2 }) => {
+  const [localState, setLocalState] = useState('');
+  
+  useEffect(() => {
+    // Side effects here
+  }, []);
+
+  return (
+    <div>
+      {/* Component JSX */}
+    </div>
+  );
+};
+
+export default MyComponent;
+\`\`\`
+` : ''}
+
+${backend === 'express' ? `
+#### Express.js/Node.js
+- **Structure**: RESTful API design with clear route separation
+- **Middleware**: Custom middleware for common functionality
+- **Error Handling**: Centralized error handling middleware
+- **Database**: PostgreSQL with connection pooling
+- **Authentication**: JWT tokens with secure practices
+
+#### API Patterns
+\`\`\`javascript
+// Preferred route pattern
+const express = require('express');
+const router = express.Router();
+
+router.get('/api/resource', async (req, res, next) => {
+  try {
+    const result = await service.getData(req.query);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;
+\`\`\`
+` : ''}
+
+${config.projectType === 'python' ? `
+#### Python
+- **Style**: PEP 8 compliance with black formatting
+- **Functions**: Type hints for all function parameters and returns
+- **Error Handling**: Specific exceptions rather than bare except clauses
+- **Documentation**: Docstrings for all public functions and classes
+${config.includeMl ? '- **Data Science**: Jupyter notebooks for exploration, .py files for production' : ''}
+
+#### Code Examples
+\`\`\`python
+from typing import List, Optional
+
+def process_data(input_data: List[str], threshold: float = 0.5) -> Optional[dict]:
+    """
+    Process input data and return results above threshold.
+    
+    Args:
+        input_data: List of strings to process
+        threshold: Minimum threshold for inclusion
+    
+    Returns:
+        Dictionary of processed results or None if no results
+    """
+    try:
+        results = {}
+        # Processing logic here
+        return results if results else None
+    except ValueError as e:
+        logger.error(f"Data processing failed: {e}")
+        raise
+\`\`\`
+` : ''}
+
+## 🗂️ File Organization
+
+### Naming Conventions
+- **Files**: kebab-case for components, snake_case for utilities
+- **Directories**: lowercase with hyphens
+- **Constants**: UPPER_SNAKE_CASE
+- **Components**: PascalCase
+
+### Project Structure Preferences
+${backend === 'express' ? `
+\`\`\`
+client/
+├── src/
+│   ├── components/     # Reusable UI components
+│   ├── pages/         # Page-level components
+│   ├── hooks/         # Custom React hooks
+│   ├── utils/         # Utility functions
+│   └── styles/        # Global styles
+
+server/
+├── routes/            # API route definitions
+├── middleware/        # Express middleware
+├── services/          # Business logic
+├── models/           # Database models
+└── utils/            # Server utilities
+\`\`\`
+` : `
+\`\`\`
+src/
+├── components/        # Reusable components
+├── pages/            # Page components
+├── hooks/            # Custom hooks
+├── utils/            # Utility functions
+├── services/         # API services
+└── styles/           # Styling
+\`\`\`
+`}
+
+## 🔧 Development Workflow
+
+### Git Practices
+- **Branches**: feature/[feature-name], bugfix/[issue-name]
+- **Commits**: Conventional commits (feat:, fix:, docs:, etc.)
+- **PRs**: Descriptive titles with linked issues
+
+### Testing Approach
+- **Unit Tests**: For utility functions and business logic
+- **Integration Tests**: For API endpoints and database operations
+- **E2E Tests**: For critical user journeys
+${config.features?.includes('playwright') ? '- **Browser Testing**: Playwright for cross-browser compatibility' : ''}
+
+### Deployment Strategy
+- **Environment**: ${config.strategy?.deploymentStrategy || 'static'} deployment
+- **CI/CD**: ${config.strategy?.deploymentStrategy === 'containerized' ? 'Docker builds with Kubernetes deployment' : 'Build and deploy pipeline'}
+- **Monitoring**: Error tracking and performance monitoring
+
+## 🚀 Performance Preferences
+
+### Optimization Priorities
+1. **Container Size**: ${config.strategy?.includeTools?.aiClis ? 'Full development features' : 'Lightweight containers (50-80% size reduction)'}
+2. **Build Speed**: Fast development builds with hot reload
+3. **Runtime Performance**: Optimized production builds
+4. **Security**: Minimal attack surface, secure dependencies
+
+### Caching Strategy
+- **Development**: Hot reload with file watching
+- **Build**: Layer caching for Docker builds
+- **Runtime**: ${backend === 'express' ? 'Redis for session and API caching' : 'Browser caching with appropriate headers'}
+
+---
+
+*Update this file as project preferences evolve and new patterns emerge.*
 `;
 }
 
@@ -1856,7 +2328,6 @@ ipykernel>=6.25.0
         
         fs.writeFileSync('requirements.txt', requirements);
       }
-      }
       
       // Create .env file for environment variables
       if (!fs.existsSync('.env')) {
@@ -2090,7 +2561,10 @@ program
     console.log('  --info   Show cache information');
   });
 
-program.parse();
+// Only run CLI when executed directly, not when imported
+if (require.main === module) {
+  program.parse();
+}
 
 // Export functions for testing
 module.exports = {
@@ -2100,5 +2574,8 @@ module.exports = {
   generateDevcontainerConfig,
   generateEnvironmentConfig,
   generateKubernetesDeployment,
-  generateKubernetesService
+  generateKubernetesService,
+  generateAIContext,
+  generateRecentWork,
+  generatePreferences
 };

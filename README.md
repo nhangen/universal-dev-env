@@ -106,6 +106,7 @@ uds setup
 uds init                    # Initialize project with dev environment
 uds init --here             # Initialize in current directory (no subdirectory)
 uds init --type python --ml # Initialize Python project with ML libraries
+uds init --ai-context       # Initialize with AI context file for Claude/Gemini/Copilot
 uds init --no-cache         # Initialize without caching (fresh downloads)
 uds setup                   # Install development tools in existing project
 uds update                  # Update to latest version
@@ -170,6 +171,9 @@ uds init --type react --backend nextjs     # Next.js full-stack
 uds init --type react --backend firebase   # React + Firebase
 uds init --type react --backend serverless # React + Vercel/Netlify
 uds init --type react --backend none       # Frontend only
+
+# Add AI context for shared memory between Claude/Gemini/Copilot
+uds init --type react --ai-context         # Generates .ai/ folder
 ```
 
 ### Node.js Backend
@@ -204,6 +208,73 @@ uds init --type python
 - Python-specific `.gitignore`
 - `activate_env.sh` script for easy activation
 - **ML starter code** with sample dataset and basic workflow
+
+## 🧠 AI Context & Shared Memory
+
+Universal Dev Environment can generate a comprehensive `.ai/` folder that provides shared context between Claude, Gemini, and GitHub Copilot.
+
+### Enable AI Context
+```bash
+uds init --ai-context                    # Generate .ai/ folder with context files
+uds init --type python --ml --ai-context # ML project with AI context
+```
+
+### What the .ai/ Folder Provides:
+
+**📁 .ai/ Folder Structure:**
+```
+.ai/
+├── context.md           # Project overview and architecture
+├── recent-work.md       # Development sessions and progress  
+└── preferences.md       # Coding patterns and project preferences
+```
+
+**📋 context.md** - Core project information:
+- Project overview, tech stack, container strategy
+- Quick start prompts for AI conversations
+- Technical setup, file structure, development commands
+- AI tool persistence instructions
+
+**📅 recent-work.md** - Development tracking:
+- Recent development sessions and completed work
+- Current focus and next steps
+- Development log template for ongoing updates
+
+**🎨 preferences.md** - Coding standards:
+- Code style preferences and patterns
+- Language-specific examples and best practices
+- File organization and naming conventions
+- Development workflow and deployment strategy
+
+### AI Tool Persistence
+Automatic configuration for maintaining settings across container rebuilds:
+
+**Claude CLI**: `~/.config/claude-code/settings.local.json`
+**Gemini CLI**: `~/.config/gemini/settings.json` and `state_snapshot.xml`  
+**GitHub Copilot**: Automatic persistence via VS Code
+
+### Usage Examples
+
+**Instead of re-explaining your project:**
+
+**Before**: "This is a React app with Express backend using Docker Compose..."
+
+**After**: "Based on .ai/context.md, help me implement the user authentication system"
+
+**For ongoing development context:**
+
+"Check .ai/recent-work.md for what I completed yesterday, then help me continue with the next API endpoint"
+
+**For consistent code patterns:**
+
+"Following the patterns in .ai/preferences.md, create a new React component for the user dashboard"
+
+### DevContainer Integration
+When `--ai-context` is used:
+- Volume mounts for Claude/Gemini settings are automatically configured
+- AI context files available at `/workspace/.ai/`
+- Container displays persistence status on startup
+- Environment variables set: `AI_CONTEXT_DIR=/workspace/.ai`
 
 ## 🪟 Windows-Specific Setup
 
