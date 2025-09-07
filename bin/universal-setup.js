@@ -766,6 +766,143 @@ spec:
 `;
 }
 
+function customizeDockerfileForProject(dockerfileContent, config) {
+  // Get project-specific ports
+  const ports = getProjectPorts(config);
+  const portList = ports.join(' ');
+  
+  // Replace the EXPOSE line with project-specific ports
+  const updatedContent = dockerfileContent.replace(
+    /EXPOSE 3000 3001 5000 5173 8000 8080 9000/,
+    `EXPOSE ${portList}`
+  );
+  
+  // Update health check to use appropriate port
+  const primaryPort = ports[0];
+  const healthCheckUpdated = updatedContent.replace(
+    /curl -f http:\/\/localhost:3000\/health \|\| curl -f http:\/\/localhost:3001\/health/,
+    `curl -f http://localhost:${primaryPort}/health`
+  );
+  
+  return healthCheckUpdated;
+}
+
+function customizeDevcontainerForProject(devcontainerContent, config) {
+  // Get project-specific ports
+  const ports = getProjectPorts(config);
+  
+  // Parse JSON, update ports, and stringify back
+  try {
+    const devcontainer = JSON.parse(devcontainerContent);
+    
+    // Update forwardPorts
+    devcontainer.forwardPorts = ports;
+    
+    // Update runArgs to expose only needed ports
+    const runArgs = devcontainer.runArgs || [];
+    // Remove existing port mappings
+    const filteredArgs = runArgs.filter(arg => !arg.startsWith('-p'));
+    
+    // Add new port mappings
+    ports.forEach(port => {
+      filteredArgs.push('-p', `${port}:${port}`);
+    });
+    
+    devcontainer.runArgs = filteredArgs;
+    
+    // Update portsAttributes with project-specific labels
+    devcontainer.portsAttributes = getPortAttributes(config, ports);
+    
+    return JSON.stringify(devcontainer, null, 2);
+  } catch (error) {
+    console.warn('Failed to parse devcontainer.json, using original content');
+    return devcontainerContent;
+  }
+}
+
+function getPortAttributes(config, ports) {
+  const attributes = {};
+  
+  if (config.projectType === 'python') {
+    if (config.includeMl) {
+      ports.forEach(port => {
+        if (port === 8000) attributes[port] = { "label": "Python Server", "onAutoForward": "notify" };
+        if (port === 8888) attributes[port] = { "label": "Jupyter Notebook", "onAutoForward": "notify" };
+        if (port === 6006) attributes[port] = { "label": "TensorBoard", "onAutoForward": "ignore" };
+      });
+    } else {
+      ports.forEach(port => {
+        if (port === 8000) attributes[port] = { "label": "Python Server", "onAutoForward": "notify" };
+        if (port === 5000) attributes[port] = { "label": "Flask Server", "onAutoForward": "notify" };
+      });
+    }
+  } else if (config.projectType === 'node') {
+    ports.forEach(port => {
+      if (port === 3000) attributes[port] = { "label": "Node.js Server", "onAutoForward": "notify" };
+      if (port === 3001) attributes[port] = { "label": "Secondary Service", "onAutoForward": "ignore" };
+    });
+  } else if (config.projectType === 'full-stack') {
+    ports.forEach(port => {
+      if (port === 3000) attributes[port] = { "label": "Frontend", "onAutoForward": "notify" };
+      if (port === 3001) attributes[port] = { "label": "Backend API", "onAutoForward": "notify" };
+      if (port === 8000) attributes[port] = { "label": "Python Services", "onAutoForward": "ignore" };
+      if (port === 5432) attributes[port] = { "label": "PostgreSQL", "onAutoForward": "ignore" };
+    });
+  } else if (config.projectType === 'react') {
+    const backend = config.backend || 'none';
+    if (backend === 'express') {
+      ports.forEach(port => {
+        if (port === 3000) attributes[port] = { "label": "React Client", "onAutoForward": "notify" };
+        if (port === 3001) attributes[port] = { "label": "Express Server", "onAutoForward": "notify" };
+        if (port === 5432) attributes[port] = { "label": "PostgreSQL Database", "onAutoForward": "ignore" };
+      });
+    } else if (backend === 'firebase') {
+      ports.forEach(port => {
+        if (port === 3000) attributes[port] = { "label": "React App", "onAutoForward": "notify" };
+        if (port === 5001) attributes[port] = { "label": "Firebase Functions", "onAutoForward": "notify" };
+        if (port === 9099) attributes[port] = { "label": "Firebase Auth", "onAutoForward": "ignore" };
+      });
+    } else {
+      ports.forEach(port => {
+        if (port === 3000) attributes[port] = { "label": "React App", "onAutoForward": "notify" };
+      });
+    }
+  } else {
+    // Default fallback
+    ports.forEach(port => {
+      if (port === 3000) attributes[port] = { "label": "Development Server", "onAutoForward": "notify" };
+    });
+  }
+  
+  return attributes;
+}
+
+function getProjectPorts(config) {
+  if (config.projectType === 'python') {
+    if (config.includeMl) {
+      return [8000, 8888, 6006]; // Python web server, Jupyter, TensorBoard
+    } else {
+      return [8000, 5000]; // Python web servers (Django/FastAPI, Flask)
+    }
+  } else if (config.projectType === 'node') {
+    return [3000, 3001]; // Node.js server and potential frontend
+  } else if (config.projectType === 'full-stack') {
+    return [3000, 3001, 8000, 5432]; // Frontend, backend, Python API, database
+  } else if (config.projectType === 'react') {
+    const backend = config.backend || 'none';
+    if (backend === 'express') {
+      return [3000, 3001, 5432]; // Client, server, and database ports
+    } else if (backend === 'firebase') {
+      return [3000, 5001, 9099]; // React, Firebase emulator ports
+    } else {
+      return [3000]; // Default React project
+    }
+  } else {
+    // Default fallback
+    return [3000];
+  }
+}
+
 async function installAICLITools(config) {
   const packageManager = getPackageManager();
   
@@ -855,7 +992,15 @@ async function setupProject(config) {
     for (const file of universalFiles) {
       try {
         spinner.text = `Downloading ${file.name}...`;
-        const content = await downloadWithCache(file.url, file.name, useCache);
+        let content = await downloadWithCache(file.url, file.name, useCache);
+        
+        // Customize content based on project type
+        if (file.name === 'Dockerfile.universal') {
+          content = customizeDockerfileForProject(content, config);
+        } else if (file.name === 'devcontainer.universal.json') {
+          content = customizeDevcontainerForProject(content, config);
+        }
+        
         const destPath = path.join(process.cwd(), file.name);
         fs.writeFileSync(destPath, content);
         
@@ -868,7 +1013,16 @@ async function setupProject(config) {
         const destPath = path.join(process.cwd(), file.name);
         
         if (fs.existsSync(srcPath)) {
-          fs.copyFileSync(srcPath, destPath);
+          let content = fs.readFileSync(srcPath, 'utf8');
+          
+          // Customize content based on project type
+          if (file.name === 'Dockerfile.universal') {
+            content = customizeDockerfileForProject(content, config);
+          } else if (file.name === 'devcontainer.universal.json') {
+            content = customizeDevcontainerForProject(content, config);
+          }
+          
+          fs.writeFileSync(destPath, content);
           if (file.name.endsWith('.sh')) {
             fs.chmodSync(destPath, 0o755);
           }
@@ -975,16 +1129,45 @@ function generateDevcontainerConfig(config) {
     }
   }
   
-  if (config.projectType === 'react') {
+  // Update port forwarding based on project type and backend
+  if (config.projectType === 'python') {
+    if (config.includeMl) {
+      base.forwardPorts = [8000, 8888, 6006]; // Python web server, Jupyter, TensorBoard
+      base.portsAttributes = {
+        "8000": { "label": "Python Server", "onAutoForward": "notify" },
+        "8888": { "label": "Jupyter Notebook", "onAutoForward": "notify" },
+        "6006": { "label": "TensorBoard", "onAutoForward": "ignore" }
+      };
+    } else {
+      base.forwardPorts = [8000, 5000]; // Python web servers (Django/FastAPI, Flask)
+      base.portsAttributes = {
+        "8000": { "label": "Python Server", "onAutoForward": "notify" },
+        "5000": { "label": "Flask Server", "onAutoForward": "notify" }
+      };
+    }
+  } else if (config.projectType === 'node') {
+    base.forwardPorts = [3000, 3001]; // Node.js server and potential frontend
+    base.portsAttributes = {
+      "3000": { "label": "Node.js Server", "onAutoForward": "notify" },
+      "3001": { "label": "Secondary Service", "onAutoForward": "ignore" }
+    };
+  } else if (config.projectType === 'full-stack') {
+    base.forwardPorts = [3000, 3001, 8000, 5432]; // Frontend, backend, Python API, database
+    base.portsAttributes = {
+      "3000": { "label": "Frontend", "onAutoForward": "notify" },
+      "3001": { "label": "Backend API", "onAutoForward": "notify" },
+      "8000": { "label": "Python Services", "onAutoForward": "ignore" },
+      "5432": { "label": "PostgreSQL", "onAutoForward": "ignore" }
+    };
+  } else if (config.projectType === 'react') {
     const backend = config.backend || 'none';
     
-    // Update port forwarding based on backend
     if (backend === 'express') {
       base.forwardPorts = [3000, 3001, 5432]; // Client, server, and database ports
       base.portsAttributes = {
-        "3000": { "label": "React Client" },
-        "3001": { "label": "Express Server" },
-        "5432": { "label": "PostgreSQL Database" }
+        "3000": { "label": "React Client", "onAutoForward": "notify" },
+        "3001": { "label": "Express Server", "onAutoForward": "notify" },
+        "5432": { "label": "PostgreSQL Database", "onAutoForward": "ignore" }
       };
       
       if (strategy.containerStrategy === 'docker-compose') {
@@ -993,21 +1176,32 @@ function generateDevcontainerConfig(config) {
     } else if (backend === 'nextjs') {
       base.forwardPorts = [3000];
       base.portsAttributes = {
-        "3000": { "label": "Next.js App" }
+        "3000": { "label": "Next.js App", "onAutoForward": "notify" }
       };
     } else if (backend === 'firebase') {
       base.forwardPorts = [3000, 5001, 9099]; // React, Firebase emulator ports
       base.portsAttributes = {
-        "3000": { "label": "React App" },
-        "5001": { "label": "Firebase Functions" },
-        "9099": { "label": "Firebase Auth" }
+        "3000": { "label": "React App", "onAutoForward": "notify" },
+        "5001": { "label": "Firebase Functions", "onAutoForward": "notify" },
+        "9099": { "label": "Firebase Auth", "onAutoForward": "ignore" }
       };
     } else {
+      // Default React project
       base.forwardPorts = [3000];
       base.portsAttributes = {
-        "3000": { "label": "React App" }
+        "3000": { "label": "React App", "onAutoForward": "notify" }
       };
     }
+  } else {
+    // Default fallback - minimal ports
+    base.forwardPorts = [3000];
+    base.portsAttributes = {
+      "3000": { "label": "Development Server", "onAutoForward": "notify" }
+    };
+  }
+
+  if (config.projectType === 'react') {
+    const backend = config.backend || 'none';
     
     // Add React-specific extensions
     base.customizations.vscode.extensions.push(
