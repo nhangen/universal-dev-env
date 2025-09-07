@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# AI Agent Session Tracking - Post-Commit Hook
+# Reminds AI agents to update SESSION_HANDOFF.md with context after commits
+
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%B)
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+FILES_COUNT=$(echo "$CHANGED_FILES" | wc -l)
+
+echo ""
+echo "🤖 AI Agent Reminder: You just committed $COMMIT_HASH"
+echo "📝 Commit: $COMMIT_MSG"
+echo "📁 Files changed: $FILES_COUNT"
+echo ""
+
+# Check if SESSION_HANDOFF.md was updated recently (within last 5 minutes)
+HANDOFF_FILE="SESSION_HANDOFF.md"
+if [ -f "$HANDOFF_FILE" ]; then
+    LAST_MODIFIED=$(stat -c %Y "$HANDOFF_FILE" 2>/dev/null || stat -f %m "$HANDOFF_FILE" 2>/dev/null)
+    CURRENT_TIME=$(date +%s)
+    TIME_DIFF=$((CURRENT_TIME - LAST_MODIFIED))
+    
+    if [ $TIME_DIFF -gt 300 ]; then  # More than 5 minutes ago
+        echo "⚠️  SESSION_HANDOFF.md was last updated $(($TIME_DIFF / 60)) minutes ago"
+        echo ""
+        echo "🔥 REQUIRED: Update SESSION_HANDOFF.md with context about this commit:"
+        echo "   - WHY did you make these changes?"
+        echo "   - What approach did you choose and why?"
+        echo "   - Any challenges or discoveries?"
+        echo "   - What should be tested or validated next?"
+        echo ""
+        echo "💡 The next AI agent needs your reasoning, not just the file changes!"
+        echo ""
+    else
+        echo "✅ SESSION_HANDOFF.md recently updated - good job maintaining context!"
+    fi
+else
+    echo "🚨 CRITICAL: SESSION_HANDOFF.md not found!"
+    echo ""
+    echo "🔥 REQUIRED: Create SESSION_HANDOFF.md immediately with:"
+    echo "   - Your role and what you're working on"
+    echo "   - Context about this commit: $COMMIT_MSG"
+    echo "   - Why you chose this approach"
+    echo "   - What the next agent should know"
+    echo ""
+    echo "Run: uds-ai-setup generate-handoff --role your-role"
+    echo ""
+fi
+
+# Extra reminder for significant commits
+if [ $FILES_COUNT -gt 3 ] || echo "$COMMIT_MSG" | grep -qi "major\|significant\|important\|breaking\|refactor"; then
+    echo "🚨 SIGNIFICANT COMMIT DETECTED ($FILES_COUNT files)"
+    echo ""
+    echo "This commit appears important - extra context needed:"
+    echo "   - What was the problem you solved?"
+    echo "   - Why this solution over alternatives?"
+    echo "   - What could break from this change?"
+    echo "   - What needs testing before next steps?"
+    echo ""
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
