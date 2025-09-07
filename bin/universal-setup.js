@@ -766,6 +766,59 @@ spec:
 `;
 }
 
+async function installAICLITools(config) {
+  const packageManager = getPackageManager();
+  
+  try {
+    // Install Claude CLI
+    console.log(chalk.blue('Installing Claude CLI...'));
+    if (isMacOS()) {
+      try {
+        execSync('brew install claude-ai/tap/claude', { stdio: 'inherit' });
+        console.log(chalk.green('✓ Claude CLI installed'));
+      } catch (error) {
+        console.log(chalk.yellow('⚠ Claude CLI installation failed - install manually: https://claude.ai/cli'));
+      }
+    } else if (isLinux()) {
+      try {
+        // Install via npm for Linux
+        execSync('npm install -g @anthropic-ai/claude-cli', { stdio: 'inherit' });
+        console.log(chalk.green('✓ Claude CLI installed'));
+      } catch (error) {
+        console.log(chalk.yellow('⚠ Claude CLI installation failed - install manually: https://claude.ai/cli'));
+      }
+    } else if (isWindows()) {
+      console.log(chalk.yellow('⚠ Install Claude CLI manually on Windows: https://claude.ai/cli'));
+    }
+
+    // Install Gemini CLI  
+    console.log(chalk.blue('Installing Gemini CLI...'));
+    if (isMacOS()) {
+      try {
+        execSync('brew install google-cloud-sdk', { stdio: 'inherit' });
+        execSync('gcloud components install gemini', { stdio: 'inherit' });
+        console.log(chalk.green('✓ Gemini CLI installed'));
+      } catch (error) {
+        console.log(chalk.yellow('⚠ Gemini CLI installation failed - install manually: https://cloud.google.com/sdk/docs/install'));
+      }
+    } else if (isLinux()) {
+      console.log(chalk.yellow('⚠ Install Google Cloud SDK + Gemini manually: https://cloud.google.com/sdk/docs/install'));
+    } else if (isWindows()) {
+      console.log(chalk.yellow('⚠ Install Google Cloud SDK + Gemini manually: https://cloud.google.com/sdk/docs/install'));
+    }
+
+    // Prompt for authentication
+    console.log(chalk.cyan('\n🔐 Authentication Setup:'));
+    console.log(chalk.gray('After setup completes, run:'));
+    console.log(chalk.white('  claude auth login'));
+    console.log(chalk.white('  gcloud auth login'));
+    console.log(chalk.gray('These commands will open your browser for authentication.'));
+    
+  } catch (error) {
+    console.log(chalk.red('CLI installation encountered errors:', error.message));
+  }
+}
+
 async function setupProject(config) {
   const spinner = ora('Setting up project...').start();
   const useCache = config.cache !== false; // Default to true unless explicitly disabled
@@ -838,6 +891,12 @@ async function setupProject(config) {
     // Create README
     const readme = generateReadme(config);
     fs.writeFileSync('README.md', readme);
+    
+    // Install AI CLI tools if selected
+    if (config.features && config.features.includes('ai-cli')) {
+      spinner.text = 'Installing AI CLI tools...';
+      await installAICLITools(config);
+    }
     
     // Create AI context file if requested
     if (config.aiContext) {
@@ -2524,6 +2583,31 @@ program
   });
 
 // Add cache management commands
+// Add guided onboarding command
+program
+  .command('onboard')
+  .description('Start guided onboarding with role-based setup')
+  .option('--skip-prompts', 'Use default configuration without prompts')
+  .option('--role <role>', 'Specify agent role directly')
+  .option('--here', 'Initialize in current directory')
+  .action(async (options) => {
+    const guidedSetup = require('./guided-setup.js');
+    console.log(chalk.yellow('🚀 Launching guided onboarding process...'));
+    console.log(chalk.gray('This will configure your environment based on your role and needs.\n'));
+    
+    try {
+      // Run the guided setup process
+      await require('child_process').execSync('node ./bin/guided-setup.js onboard ' + 
+        (options.skipPrompts ? '--skip-prompts ' : '') +
+        (options.role ? `--role ${options.role} ` : '') +
+        (options.here ? '--here' : ''), 
+        { stdio: 'inherit' }
+      );
+    } catch (error) {
+      console.error(chalk.red('Onboarding failed:', error.message));
+    }
+  });
+
 program
   .command('cache')
   .description('Manage cache')

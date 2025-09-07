@@ -1,11 +1,12 @@
 {
   "name": "@nhangen/universal-dev-env",
-  "version": "1.4.5",
+  "version": "1.5.0",
   "description": "Universal development environment setup for modern web projects",
   "main": "bin/universal-setup.js",
   "bin": {
     "universal-dev-setup": "./bin/universal-setup.js",
-    "uds": "./bin/universal-setup.js"
+    "uds": "./bin/universal-setup.js",
+    "uds-ai-setup": "./bin/ai-agent-setup.js"
   },
   "scripts": {
     "install-global": "npm install -g .",
@@ -13,7 +14,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "build": "echo \"Build complete\"",
-    "prepare": "chmod +x bin/universal-setup.js && chmod +x universal-setup.sh"
+    "prepare": "chmod +x bin/universal-setup.js && chmod +x bin/ai-agent-setup.js && chmod +x universal-setup.sh"
   },
   "keywords": [
     "development",
@@ -25,7 +26,10 @@
     "universal",
     "react",
     "node",
-    "python"
+    "python",
+    "agent",
+    "onboarding",
+    "handoff"
   ],
   "author": "nhangen <contact@nhangen.com>",
   "license": "MIT",
@@ -55,6 +59,7 @@
   },
   "files": [
     "bin/",
+    "hooks/",
     "templates/",
     "universal-setup.sh",
     "universal-setup.ps1",

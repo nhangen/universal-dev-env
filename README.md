@@ -114,6 +114,12 @@ uds uninstall               # Completely remove Universal Dev Environment
 uds cache --info            # Show cache information
 uds cache --clear           # Clear cached files
 universal-dev-setup         # Main setup script (direct)
+
+# AI Agent Configuration
+uds-ai-setup configure      # 🤖 Configure AI agent roles for Claude/Gemini
+uds-ai-setup role-info      # Show available agent roles
+uds-ai-setup add-role       # Add custom AI agent role
+uds-ai-setup generate-handoff --role <role> # Generate session handoff
 ```
 
 ## 🛠️ What Gets Installed
@@ -208,6 +214,49 @@ uds init --type python
 - Python-specific `.gitignore`
 - `activate_env.sh` script for easy activation
 - **ML starter code** with sample dataset and basic workflow
+
+## 🤖 AI Agent Setup & Collaboration
+
+### AI Agent Role Configuration
+
+Configure AI agent roles for your project to enable structured collaboration between Claude, Gemini, and other AI assistants:
+
+```bash
+# Interactive setup - configure which roles are available
+uds-ai-setup configure
+
+# View configured roles
+uds-ai-setup role-info
+
+# Add custom role for project-specific needs
+uds-ai-setup add-role
+```
+
+**Available AI Agent Roles:**
+- 👨‍💻 **Senior Software Engineer**: Code quality, architecture, testing
+- 📊 **Senior Data Scientist**: ML/AI research, data analysis, experiments  
+- ⚙️ **DevOps Engineer**: Infrastructure, CI/CD, deployment
+- 🔒 **Cybersecurity Analyst**: Security assessment, vulnerability analysis
+- 🧠 **AI Research Scientist**: Model development, research documentation
+- 📋 **Project Manager**: Task tracking, coordination, milestones
+- 📝 **Technical Writer**: Documentation, guides, API docs
+- 🧪 **QA Engineer**: Testing, quality assurance, automation
+- 🗄️ **Database Administrator**: Data management, optimization
+- ⚛️ **Quantum Specialist**: Quantum computing, specialized algorithms
+
+### Session Handoff System
+
+Enable seamless agent-to-agent collaboration:
+
+```bash
+# Generate handoff when ending your session
+uds-ai-setup generate-handoff --role your-role --session-summary "what you accomplished"
+```
+
+**Generated Files:**
+- `AI_AGENT_ONBOARDING.md` - Instructions for new AI agents
+- `.ai-agent-config.json` - Role configuration and project context
+- `SESSION_HANDOFF.md` - Current session status and next steps
 
 ## 🧠 AI Context & Shared Memory
 
