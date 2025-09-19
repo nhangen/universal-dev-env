@@ -109,9 +109,9 @@
   },
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/.gitconfig,target=/home/developer/.gitconfig,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/.claude,target=/home/developer/.config/claude-code,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.claude,target=/home/developer/.claude,type=bind,consistency=cached",
     "source=${localWorkspaceFolder}/.devcontainer/.gh-config,target=/home/developer/.config/gh,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/.gemini,target=/home/developer/.config/gemini,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.gemini,target=/home/developer/.gemini,type=bind,consistency=cached",
     "source=universal-node-modules,target=/workspace/node_modules,type=volume"
   ],
   "remoteUser": "developer",

@@ -634,6 +634,15 @@ Project: ${config.project.name}
 - **Onboarding**: This file (\`AI_AGENT_ONBOARDING.md\`)
 - **Session Handoffs**: \`SESSION_HANDOFF.md\` (updated each session)
 - **AI Context**: \`.ai/\` directory (if exists)
+- **Claude CLI Data**: \`~/.claude/\` (projects, settings, cache)
+- **GitHub CLI Data**: \`~/.config/gh/\` (config.yml, hosts.yml)
+- **Gemini CLI Data**: \`~/.gemini/\` (oauth_creds.json, settings.json)
+- **Git Configuration**: \`~/.gitconfig\` (user.name, user.email, aliases)
+- **DevContainer Persistence**: 
+  - \`.devcontainer/.gitconfig\` → \`~/.gitconfig\`
+  - \`.devcontainer/.claude/\` → \`~/.claude/\`
+  - \`.devcontainer/.gh-config/\` → \`~/.config/gh/\`
+  - \`.devcontainer/.gemini/\` → \`~/.gemini/\`
 
 ---
 

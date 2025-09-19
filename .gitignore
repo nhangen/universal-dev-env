@@ -91,6 +91,9 @@ Desktop.ini
 *.swo
 *~
 
+# DevContainer persistence (contains personal auth data)
+.devcontainer/
+
 # Testing
 .nyc_output
 coverage

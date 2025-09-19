@@ -105,9 +105,9 @@ export NODE_ENV=development
 
 ### Config Directories
 The setup creates the following configuration directories:
-- `~/.config/claude-code` - Claude CLI configuration
-- `~/.config/gh` - GitHub CLI configuration
-- `~/.config/gemini` - Gemini CLI configuration
+- `~/.claude/` - Claude CLI configuration and project data
+- `~/.config/gh/` - GitHub CLI configuration
+- `~/.gemini/` - Gemini CLI configuration
 
 ## 🔐 Authentication Setup
 

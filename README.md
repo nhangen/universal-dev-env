@@ -298,8 +298,8 @@ uds init --type python --ml --ai-context # ML project with AI context
 ### AI Tool Persistence
 Automatic configuration for maintaining settings across container rebuilds:
 
-**Claude CLI**: `~/.config/claude-code/settings.local.json`
-**Gemini CLI**: `~/.config/gemini/settings.json` and `state_snapshot.xml`  
+**Claude CLI**: `~/.claude/settings.json` and project data
+**Gemini CLI**: `~/.gemini/settings.json` and `oauth_creds.json`  
 **GitHub Copilot**: Automatic persistence via VS Code
 
 ### Usage Examples
@@ -608,9 +608,9 @@ rm -rf ~/.universal-dev-env
 rm -f ~/bin/dev-start
 
 # Remove configuration directories (optional - will lose settings)
-rm -rf ~/.config/claude-code
+rm -rf ~/.claude
 rm -rf ~/.config/gh
-rm -rf ~/.config/gemini
+rm -rf ~/.gemini
 ```
 
 **Remove Installed Tools (Optional):**
@@ -641,13 +641,31 @@ sudo apk del github-cli  # Alpine
 # Complete clean slate (removes all traces)
 npm uninstall -g @nhangen/universal-dev-env
 rm -rf ~/.universal-dev-env
-rm -rf ~/.config/claude-code ~/.config/gh ~/.config/gemini
+rm -rf ~/.claude ~/.config/gh ~/.gemini
 rm -f ~/bin/dev-start
 
 # Then reinstall fresh
 npm install -g @nhangen/universal-dev-env
 uds init --no-cache
 ```
+
+## 🔐 DevContainer Personal Data
+
+When using DevContainers, your personal authentication and configuration data is automatically persisted locally but **never committed to git**:
+
+### 📁 What's Persisted Locally
+- **Git Configuration**: `.devcontainer/.gitconfig` → `~/.gitconfig`
+- **Claude CLI Data**: `.devcontainer/.claude/` → `~/.claude/`
+- **GitHub CLI Auth**: `.devcontainer/.gh-config/` → `~/.config/gh/`
+- **Gemini CLI Auth**: `.devcontainer/.gemini/` → `~/.gemini/`
+
+### 🔒 Security Features
+- ✅ **`.devcontainer/` is git-ignored** - Personal data never committed
+- ✅ **Each developer has their own credentials** - No shared authentication
+- ✅ **Persists across container rebuilds** - No need to re-authenticate
+- ✅ **Local-only storage** - Credentials stay on your machine
+
+This ensures you can rebuild containers without losing authentication while keeping personal data secure.
 
 ## 🐛 Known Issues
 
