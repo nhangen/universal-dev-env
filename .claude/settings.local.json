@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:github.com)",
+      "Read(//Users/nhangen/.config/gh/**)",
+      "Read(//Users/nhangen/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
